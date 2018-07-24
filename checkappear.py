@@ -24,9 +24,9 @@ allwords = {x for sublist in words for x in sublist}
 if False:
     for word in allwords:
         IDF[word] = math.log(len(words) / len([1 for x in words if word in x]))
-        IDFjson = json.dumps(IDF)
-        idffile = open("IDF.data", "w")
-        idffile.write(IDFjson)
+    IDFjson = json.dumps(IDF)
+    idffile = open("IDF.data", "w")
+    idffile.write(IDFjson)
 else:
     idffile = open("IDF.data", "r")
     IDF = json.loads(idffile.read())
