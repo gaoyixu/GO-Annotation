@@ -1,0 +1,235 @@
+from matplotlib import pyplot as plt
+from numpy import mean, median
+
+
+def draw_term_name_len_distribution(filename):
+    with open(filename) as fd:
+        lines = fd.readlines()
+    name_len_list = []
+    for line in lines:
+        items = line.split('\t')
+        term_name = items[0]
+        name_words_list = term_name.split()
+        name_len_list.append(len(name_words_list))
+        items.pop(0)
+        term_def = items[0]
+        items.pop(0)
+        descriptions = items
+
+    print(max(name_len_list), mean(name_len_list))
+
+    n, bins, _ = plt.hist(name_len_list, bins=range(1, 30), color='r', edgecolor='#FFFFFF')
+    print(n, bins)
+    max_i = 0
+    for i in range(len(n) - 1, -1, -1):
+        if n[i] > 0:
+            max_i = i
+            break
+    print(bins[max_i])
+    print(n[max_i])
+
+    def bias(i):
+        if i < 10:
+            return 0.4
+        elif i < 1000:
+            return 0.25
+        elif i < 10000:
+            return 0.15
+
+    for i in range(len(n)):
+        plt.text(bins[i] + bias(n[i]), n[i] + 20, str(int(n[i])), fontsize=8)
+    plt.title('Term Name Length Distribution')
+    plt.xticks([i + 0.5 for i in range(1, 29)], [str(i) for i in range(1, 29)], fontsize=8)
+    plt.xlabel('Number of Name Words')
+    plt.ylabel('Number')
+    plt.show()
+
+
+def draw_term_def_distribution_less_than_100(filename):
+    with open(filename) as fd:
+        lines = fd.readlines()
+    def_len_list = []
+    for line in lines:
+        items = line.split('\t')
+        term_name = items[0]
+        items.pop(0)
+        term_def = items[0]
+        def_words_list = term_def.split()
+        def_len_list.append(len(def_words_list))
+        items.pop(0)
+        descriptions = items
+
+    # print(def_len_list)
+
+    n, bins, _ = plt.hist(def_len_list, bins=range(1, 100), color='b', edgecolor='#FFFFFF')
+    print(n, bins)
+    max_i = 0
+    for i in range(len(n) - 1, -1, -1):
+        if n[i] > 0:
+            max_i = i
+            break
+    print(bins[max_i])
+    print(n[max_i])
+
+    def bias(j):
+        if j < 10:
+            return 0.3
+        elif j < 100:
+            return 0.15
+        elif j < 1000:
+            return 0.05
+        elif j < 10000:
+            return -0.1
+
+    for i in range(len(n)):
+        plt.text(bins[i] + bias(n[i]), n[i] + 5, str(int(n[i])), fontsize=4)
+    plt.title('Term Define Length (Less Than 100) Distribution')
+    plt.axis([0, 100, 0, 1600])
+    plt.xticks([i + 0.5 for i in range(0, 100, 5)], [str(i) for i in range(0, 100, 5)], fontsize=8)
+    plt.xlabel('Number of Define Words')
+    plt.ylabel('Number')
+    plt.show()
+
+
+def draw_term_def_distribution_more_than_100(filename):
+    with open(filename) as fd:
+        lines = fd.readlines()
+    def_len_list = []
+    for line in lines:
+        items = line.split('\t')
+        term_name = items[0]
+        items.pop(0)
+        term_def = items[0]
+        def_words_list = term_def.split()
+        def_len_list.append(len(def_words_list))
+        items.pop(0)
+        descriptions = items
+
+    print(max(def_len_list), mean(def_len_list))
+
+    n, bins, _ = plt.hist(def_len_list, bins=range(100, 200), color='m', edgecolor='#FFFFFF')
+    print(n, bins)
+    max_i = 0
+    for i in range(len(n) - 1, -1, -1):
+        if n[i] > 0:
+            max_i = i
+            break
+    print(bins[max_i])
+    print(n[max_i])
+
+    def bias(j):
+        if j < 10:
+            return 0.2
+        elif j < 1000:
+            return -0.1
+        elif j < 10000:
+            return -0.2
+
+    plt.title('Term Define Length (More Than 100) Distribution')
+    plt.axis([100, 200, 0, 8])
+    plt.xticks([i + 0.5 for i in range(100, 200, 5)], [str(i) for i in range(100, 200, 5)], fontsize=8)
+    plt.xlabel('Number of Define Words')
+    plt.ylabel('Number')
+    plt.show()
+
+
+def draw_term_gene_distribution(filename):
+    with open(filename) as fd:
+        lines = fd.readlines()
+    gene_num_list = []
+    for line in lines:
+        items = line.split('\t')
+        term_name = items[0]
+        items.pop(0)
+        term_def = items[0]
+        items.pop(0)
+        descriptions = items
+        gene_num_list.append(len(descriptions))
+
+    count = 0
+    for num in gene_num_list:
+        if num > 50:
+            count += 1
+    print(1 - count/len(gene_num_list))
+    print(max(gene_num_list))
+    print(mean(gene_num_list))
+    print(median(gene_num_list))
+
+    n, bins, _ = plt.hist(gene_num_list, bins=range(51), color='c', edgecolor='#FFFFFF')
+    print(n, bins)
+    max_i = 0
+    for i in range(len(n) - 1, -1, -1):
+        if n[i] > 0:
+            max_i = i
+            break
+    print(bins[max_i])
+    print(n[max_i])
+
+    def bias(i):
+        if i < 10:
+            return 0.4
+        elif i < 1000:
+            return 0.2
+        elif i < 10000:
+            return 0.1
+
+    for i in range(1, len(n)):
+        plt.text(bins[i] + bias(n[i]), n[i] + 20, str(int(n[i])), fontsize=5)
+    plt.title('Number of Gene Each Term')
+    plt.xticks([i + 0.5 for i in range(1, 51)], [str(i) for i in range(1, 51)], fontsize=6)
+    plt.xlabel('Number of Gene')
+    plt.ylabel('Count')
+    plt.show()
+
+
+def draw_term_gene_length_distribution(filename):
+    with open(filename) as fd:
+        lines = fd.readlines()
+    gene_len_list = []
+    for line in lines:
+        items = line.split('\t')
+        term_name = items[0]
+        items.pop(0)
+        term_def = items[0]
+        items.pop(0)
+        descriptions = items
+        gene_len_list.append(sum([len(description.split()) for description in descriptions]))
+
+    print(len(gene_len_list))
+    print(mean(gene_len_list))
+    print(median(gene_len_list))
+    print(max(gene_len_list))
+    print(min(gene_len_list))
+
+    print(len([1 for gene_len in gene_len_list if gene_len < 100]) / len(gene_len_list))
+    print(len([1 for gene_len in gene_len_list if gene_len < 200]) / len(gene_len_list))
+    print(len([1 for gene_len in gene_len_list if gene_len < 500]) / len(gene_len_list))
+
+    n, bins, _ = plt.hist(gene_len_list, bins=range(0, 100, 1), color='m', edgecolor='#FFFFFF')
+    print(n, bins)
+    max_i = 0
+    for i in range(len(n) - 1, -1, -1):
+        if n[i] > 0:
+            max_i = i
+            break
+    print(bins[max_i])
+    print(n[max_i])
+
+    def bias(i):
+        if i < 100:
+            return 0.2
+        elif i < 1000:
+            return 0
+        elif i < 10000:
+            return -0.05
+
+    for i in range(1, len(n)):
+        plt.text(bins[i] + bias(n[i]), n[i] + 5, str(int(n[i])), fontsize=4)
+    plt.title('Number of Gene Words Each Term (Less Than 100)')
+    plt.xticks([i + 0.5 for i in range(1, 101, 5)], [str(i) for i in range(1, 101, 5)], fontsize=4)
+    plt.xlabel('Number of Gene Words Each Term')
+    plt.ylabel('Count')
+    plt.show()
+
+
+draw_term_def_distribution_less_than_100('term_name_def_descriptions_human.txt')
