@@ -29,5 +29,5 @@ def cleaning(src_path, dst_path):
             fd.writelines([line_cleaned])
 
 
-cleaning('term_name_def_descriptions_human.txt', 'data_clearn.txt')
+cleaning('term_name_def_descriptions_human.txt', 'data_clean.txt')
 
