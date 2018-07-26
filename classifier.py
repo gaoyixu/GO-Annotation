@@ -27,7 +27,7 @@ words = [x + y for x, y in zip(wordsofname, wordsofdescription)]
 
 allwords = {x for sublist in words for x in sublist}
 
-if True:
+if False:
     for word in allwords:
         IDF[word] = math.log(len(words) / len([1 for x in words if word in x]))
     IDFjson = json.dumps(IDF)
