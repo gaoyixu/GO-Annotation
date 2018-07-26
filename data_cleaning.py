@@ -17,7 +17,7 @@ def cleaning(src_path, dst_path):
                 word = ''
                 for c in s:
                     if c.isalpha() or c.isdigit():
-                        word += c
+                        word += c.lower()
                     elif word:
                         word_list.append(word)
                         word = ''
@@ -29,5 +29,4 @@ def cleaning(src_path, dst_path):
             fd.writelines([line_cleaned])
 
 
-cleaning('term_name_def_descriptions_human.txt', 'data_clean.txt')
-
+cleaning('term_name_def_descriptions_human.txt', 'data_clean_lower.txt')
