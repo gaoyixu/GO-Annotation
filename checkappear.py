@@ -10,7 +10,7 @@ stopWords = set(stopwords.words('english'))
 
 AppearDict = dict()
 
-file = open("./term_name_def_descriptions_from_gene_info_and_gene2go.txt")
+file = open("./term_name_def_descriptions_human.txt")
 content = file.readlines()
 IDF: Dict[str, float] = dict()
 
@@ -25,14 +25,14 @@ words = [x + y for x, y in zip(wordsofname, wordsofdescription)]
 
 allwords = {x for sublist in words for x in sublist}
 
-if False:
+if True:
     for word in allwords:
         IDF[word] = math.log(len(words) / len([1 for x in words if word in x]))
     IDFjson = json.dumps(IDF)
-    idffile = open("IDF.data", "w")
+    idffile = open("IDF_human.data", "w")
     idffile.write(IDFjson)
 else:
-    idffile = open("IDF.data", "r")
+    idffile = open("IDF_human.data", "r")
     IDF = json.loads(idffile.read())
 
 for i in range(29):
@@ -74,6 +74,7 @@ plt.xlabel("tfidf rank")
 plt.xticks(range(10), [str(i + 1) for i in range(0, 10)])
 plt.ylabel("fraction of word appearing in description")
 plt.ylim([0, 1])
+plt.savefig("tfidfrank_human.png")
 
 rects = ax.patches
 
@@ -98,4 +99,4 @@ plt.figure()
 plt.bar(range(1, 29), [AppearDict[i] for i in range(1, 29)], color="blue")
 plt.xlabel("Number of words in name")
 plt.ylabel("frequency of word in name appearing in description")
-plt.savefig("frequencyofappearing.png", dpi=300)
+plt.savefig("frequencyofappearing_human.png", dpi=300)
