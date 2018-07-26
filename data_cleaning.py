@@ -11,13 +11,14 @@ def cleaning(src_path, dst_path):
             term_def = items[0]
             items.pop(0)
             descriptions = items
-            line_cleaned = ''
+            item_cleaned_list = []
+            word_list = ''
             for s in [term_name, term_def] + descriptions:
                 word_list = []
                 word = ''
                 for c in s:
                     if c.isalpha() or c.isdigit():
-                        word += c.lower()
+                        word += c  # .lower()
                     elif word:
                         word_list.append(word)
                         word = ''
@@ -25,8 +26,8 @@ def cleaning(src_path, dst_path):
                         word_list.append(c)
                     else:
                         pass
-                line_cleaned += ' '.join(word_list) + '\t'
-            fd.writelines([line_cleaned])
+                item_cleaned_list.append(' '.join(word_list))
+            fd.writelines('\t'.join(item_cleaned_list) + '\n')
 
 
-cleaning('term_name_def_descriptions_human.txt', 'data_clean_lower.txt')
+cleaning('term_name_def_descriptions_human.txt', 'data_clean.txt')
