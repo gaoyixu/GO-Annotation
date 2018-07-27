@@ -10,6 +10,7 @@ import operator
 import pandas as pd
 from nltk.corpus import stopwords
 from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
 from sklearn.cross_validation import train_test_split
 stopWords = set(stopwords.words('english'))
 
@@ -40,100 +41,71 @@ else:
     idffile = open("IDF_data_clean_lower.data", "r")
     IDF = json.loads(idffile.read())
 
-words_not_in_description = set()
-frequency_of_words_not_in_description = []
-
-for i in range(len(content)):
-    for word in set(wordsofname[i]):
-        if word in stopWords:
-            continue
-        if word not in wordsofdescription[i]:
-            words_not_in_description.add(word)
-
-for word in words_not_in_description:
-    frequency_of_words_not_in_description.append(sum(
-        [term.count(word) for term in wordsofdescription]))
-
-plt.figure()
-plt.hist(frequency_of_words_not_in_description)
-plt.show()
-
-
-
-# X = []
-# Y = []
+# words_not_in_description = set()
+# frequency_of_words_not_in_description = []
 
 # for i in range(len(content)):
-#     for word in set(wordsofdescription[i]):
+#     for word in set(wordsofname[i]):
 #         if word in stopWords:
 #             continue
-#         idf = IDF[word]
-#         tf = wordsofdescription[i].count(word) / len(wordsofdescription)
-#         tfidf = idf * tf
-#         wordlength = len(word)
-#         X.append([tf, idf, tfidf, wordlength])
-#         Y.append(float(word in wordsofname[i]))
+#         if word not in wordsofdescription[i]:
+#             words_not_in_description.add(word)
 
-# X = np.array(X, dtype=float)
-# Y = np.array(Y, dtype=float)
+# for word in words_not_in_description:
+#     frequency_of_words_not_in_description.append(sum(
+#         [term.count(word) for term in wordsofdescription]))
 
-# X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.3, random_state=0)
-
-# model = LogisticRegression(C=10)
-# model.fit(X_train, Y_train)
-
-# probtest = model.predict_proba(X_test)
-
-# FNs = []
-# FPs = []
-
-# for threshhold in np.linspace(0, 1, 1001):
-#     Y_predict = 1.0 * (probtest > threshhold)
-#     Y_predict = Y_predict[:, 1]
-#     FN = ((1 - Y_predict) * (Y_test)).sum() / (Y_test).sum()
-#     FP = (Y_predict * (1 - Y_test)).sum() / (1 - Y_test).sum()
-#     FNs.append(FN)
-#     FPs.append(FP)
-
-# FNn = np.array(FNs)
-# FPn: ndarray = np.array(FPs)
+# allwords_in_name = {x for sublist in wordsofname for x in sublist}
+# print(frequency_of_words_not_in_description.count(0) / len(allwords_in_name))
 
 # plt.figure()
-# plt.scatter(1 - FNn, 1 - FPn)
-# plt.xlabel("1 - False Negative")
-# plt.ylabel("1 - False Positive")
-# plt.savefig("FP-FN.png", dpi=300)
+# temp = [x if x < 10 else 10 for x in frequency_of_words_not_in_description]
+# plt.hist(temp)
+# plt.savefig("frequency_of_words_not_in_description")
 
 
-# # for i in range(29):
-# #     AppearDict[i] = []
 
-# # postfidf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-# # negtfidf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+X = []
+Y = []
 
-# # for i in range(len(content)):
-# #     positiveweight = 0.0
-# #     negativeweight = 0.0
-# #     wordtfidf = dict()
-# #     for word in wordsofname[i]:
-# #         idf = IDF[word]
-# #         tf = words[i].count(word) / len(words[i])
-# #         tfidf = tf * idf
-# #         if word not in stopWords:
-# #             wordtfidf[word] = tfidf
-# #             if word in wordsofdescription[i]:
-# #                 positiveweight += tfidf
-# #             else:
-# #                 negativeweight += tfidf
-# #     sordedwordbytfidf = list(reversed(sorted(wordtfidf.items(), key=operator.itemgetter(1))))
-# #     if i < 10:
-# #         print(sordedwordbytfidf)
-# #     for j, v in enumerate(sordedwordbytfidf):
-# #         if j >= 10:
-# #             break
-# #         if v[0] in wordsofdescription[i]:
-# #             postfidf[j] += 1
-# #         else:
-# #             negtfidf[j] += 1
-# #     temp = len(wordsofname[i])
-# #     AppearDict[temp].append(positiveweight / (positiveweight + negativeweight))
+for i in range(len(content)):
+    for word in set(wordsofdescription[i]):
+        if word in stopWords:
+            continue
+        idf = IDF[word]
+        tf = wordsofdescription[i].count(word) / len(wordsofdescription)
+        tfidf = idf * tf
+        wordlength = len(word)
+        X.append([tf, idf, tfidf, wordlength])
+        Y.append(float(word in wordsofname[i]))
+
+X = np.array(X, dtype=float)
+Y = np.array(Y, dtype=float)
+
+X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.3, random_state=0)
+
+# model = LogisticRegression(C=10)
+model = SVC()
+model.fit(X_train, Y_train)
+
+probtest = model.predict_proba(X_test)
+
+FNs = []
+FPs = []
+
+for threshhold in np.linspace(0, 1, 1001):
+    Y_predict = 1.0 * (probtest > threshhold)
+    Y_predict = Y_predict[:, 1]
+    FN = ((1 - Y_predict) * (Y_test)).sum() / (Y_test).sum()
+    FP = (Y_predict * (1 - Y_test)).sum() / (1 - Y_test).sum()
+    FNs.append(FN)
+    FPs.append(FP)
+
+FNn = np.array(FNs)
+FPn: ndarray = np.array(FPs)
+
+plt.figure()
+plt.scatter(1 - FNn, 1 - FPn)
+plt.xlabel("1 - False Negative")
+plt.ylabel("1 - False Positive")
+plt.savefig("FP-FN-SVM.png", dpi=300)
