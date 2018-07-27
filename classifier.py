@@ -74,11 +74,14 @@ for threshhold in np.linspace(0, 1, 101):
     FNs.append(FN)
     FPs.append(FP)
 
+FNs = np.array(FNs)
+FPs = np.array(FPs)
+
 plt.figure()
-plt.scatter(FNs, FPs)
+plt.scatter(FNs, 1 - FPs)
 plt.xlabel("False Negative")
-plt.xlabel("False Positive")
-plt.savefig("FP - FN")
+plt.xlabel("1 - False Positive")
+plt.savefig("FP-FN.png", dpi=300)
 
 
 # for i in range(29):
