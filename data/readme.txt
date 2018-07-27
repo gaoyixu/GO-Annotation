@@ -1,0 +1,26 @@
+*_clean.txt
+	Separate dots and commas with space and clean Muti-space to single-space
+
+*_clean_lower.txt
+	All letters in cleaned file are lowercase
+
+term_name_def_descriptions_human.txt
+data_clean.txt
+data_clean_lower.txt
+	term name + tab + term def + tab + gene description + tab + ...
+
+gene_dict.txt
+gene_dict_clean.txt
+gene_dict_clean_lower.txt
+	GeneID + tab + Gene Description
+
+go_dict.txt
+go_dict_clean.txt
+go_dict_clean_lower.txt
+	GO (term ID) + tab + term name + term def
+
+id_data.txt
+	GO (term ID) + tab + UniprotKB:GeneID + tab + ...
+
+UniProtKB-ID-to-GeneID.txt
+	UniProtKB-ID + tab + GeneID
