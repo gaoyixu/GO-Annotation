@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib
+matplotlib.use('agg')
 from matplotlib import pyplot as plt
 from typing import Dict
 import math
@@ -58,10 +60,26 @@ X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.3, random_
 
 model = LogisticRegression(C=10)
 model.fit(X_train, Y_train)
-print(1 - sum(Y_train) / len(Y_train))
-print(1 - sum(Y_test) / len(Y_test))
-print(model.score(X_train, Y_train))
-print(model.score(X_test, Y_test))
+
+probtest = model.predict_proba(X_test)
+
+FNs = []
+FPs = []
+
+for threshhold in np.linspace(0, 1, 101):
+    Y_predict = 1.0 * (probtest > threshhold)
+    Y_predict = Y_predict[:, 1]
+    FN = ((1 - Y_predict) * (Y_test)).sum() / (Y_test).sum()
+    FP = (Y_predict * (1 - Y_test)).sum() / (1 - Y_test).sum()
+    FNs.append(FN)
+    FPs.append(FP)
+
+plt.figure()
+plt.scatter(FNs, FPs)
+plt.xlabel("False Negative")
+plt.xlabel("False Positive")
+plt.savefig("FP - FN")
+
 
 # for i in range(29):
 #     AppearDict[i] = []
