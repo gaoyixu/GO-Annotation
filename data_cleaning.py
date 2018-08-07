@@ -1,4 +1,14 @@
-def cleaning(src_path, dst_path):
+"""
+Usage:
+    cleaning('data/term_name_def_descriptions_human.txt',
+         'data/data_clean_lower.txt', True)
+    cleaning('data/term_name_def_descriptions_human.txt',
+         'data/data_clean.txt', False)
+    clean_dict('data/go_dict.txt', 'data/go_dict_clean.txt')
+"""
+
+
+def cleaning(src_path, dst_path, lower_mode=True):
     with open(src_path) as fd:
         lines = fd.readlines()
     letter_set = {'>', '_', '<', '*', '%', '=', '.', '&', '/',
@@ -12,7 +22,10 @@ def cleaning(src_path, dst_path):
                 word = ''
                 for c in s:
                     if c.isalpha() or c.isdigit() or c == '-':
-                        word += c.lower()
+                        if lower_mode:
+                            word += c.lower()
+                        else:
+                            word += c
                     else:
                         if word:
                             word_list.append(word)
@@ -52,6 +65,4 @@ def clean_dict(src_path, dst_path):
             fd.writelines(items[0] + '\t' + '\t'.join(item_cleaned_list) + '\n')
 
 
-# clean_dict('go_dict.txt', 'go_dict_clean.txt')
-cleaning('data/term_name_def_descriptions_human.txt',
-         'data/data_clean_lower.txt')
+clean_dict('data/go_dict.txt', 'data/go_dict_clean.txt')
