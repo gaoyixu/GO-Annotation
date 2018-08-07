@@ -73,6 +73,7 @@ for i in range(len(content)):
     tfidf_Hash = []
     description_seperated = content[i][1:]
     description_seperated = [desc for desc in description_seperated if desc]
+    total_length = len(wordsofdescription[i])
     n = len(description_seperated)
     for j in range(n):
         temp_hash = dict()
@@ -115,31 +116,43 @@ for i in range(len(content)):
             if not word[0].isalpha:
                 continue
             idf = IDF[word]
-            tf = description_seperated_j.count(word) / len(description_seperated_j)
+            tf = description_seperated_j.count(word) / total_length
             update(tfidf_score, word, idf * tf * float(p[j]))
     tfidf_score_all.append(tfidf_score)
 
 top_one_accuracy = []
 top_two_accuracy = []
 top_three_accuracy = []
+top_one_recall = []
+top_two_recall = []
+top_three_recall = []
 
 for i in range(len(content)):
+    if not wordsofname[i]:
+        continue
     word_candidate = [word for word in set(
         wordsofdescription[i]) if word not in stopWords and word and word[0].isalpha()]
     description_seperated = content[i][1:]
     def get_prior(word, i):
+        # return random.random()
         return tfidf_score_all[i][word]
     word_candidate = sorted(word_candidate, key=lambda word: -get_prior(word, i))
-    top_one = word_candidate[:1]
-    top_two = word_candidate[:2]
-    top_three = word_candidate[:3]
+    top_one = set(word_candidate[:1])
+    top_two = set(word_candidate[:2])
+    top_three = set(word_candidate[:3])
     top_one_accuracy.append(sum([float(word in wordsofname[i])
                                  for word in top_one]) / len(top_one))
     top_two_accuracy.append(sum([float(word in wordsofname[i])
                             for word in top_two]) / len(top_two))
     top_three_accuracy.append(sum([float(word in wordsofname[i]) for word in top_three]) / len(top_three))
+    top_one_recall.append(sum([float(word in wordsofname[i])
+                                 for word in top_one]) / len(set(wordsofname[i])))
+    top_two_recall.append(sum([float(word in wordsofname[i])
+                            for word in top_two]) / len(set(wordsofname[i])))
+    top_three_recall.append(sum([float(word in wordsofname[i]) for word in top_three]) / len(set(wordsofname[i])))
 
 print([mean(top_one_accuracy), mean(top_two_accuracy), mean(top_three_accuracy)])
+print([mean(top_one_recall), mean(top_two_recall), mean(top_three_recall)])
 
 # def DuplicatePositiveSample(X, Y, positive_score):
 #     positive_number = sum([y > 0.5 for y in Y])

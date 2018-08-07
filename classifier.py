@@ -1,3 +1,4 @@
+# BEGIN
 import numpy as np
 from numpy import ndarray
 import matplotlib
@@ -24,7 +25,7 @@ AppearDict = dict()
 
 file = open("./data/data_clean_lower.txt")
 content = file.readlines()
-IDF: Dict[str, float] = dict()
+IDF = dict()
 
 content = [line[:-1].split("\t") for line in content]
 name = [x[0] for x in content]
@@ -85,9 +86,9 @@ for i in range(len(content)):
         wordlength = len(word)
         idf_local = math.log(len(description_seperated) /
                         sum([word in des.split(" ") for des in description_seperated]))
-        X.append([tf, idf, tfidf, wordlength, idf_local])
+        # X.append([tf, idf, tfidf, wordlength, idf_local])
+        X.append([tfidf])
         Y.append(float(word in wordsofname[i]))
-
 
 def DuplicatePositiveSample(X, Y, positive_score):
     positive_number = sum([y > 0.5 for y in Y])
@@ -123,15 +124,22 @@ model = LogisticRegression(C=10000)
 # model.fit(X_train, Y_train)
 model.fit(X, Y)
 
+# END
+
 # probtest = model.predict_proba(X_test)
 
 top_one_accuracy = []
 top_two_accuracy = []
 top_three_accuracy = []
+top_one_recall = []
+top_two_recall = []
+top_three_recall = []
 
 for i in range(len(content)):
+    if not wordsofname[i]:
+        continue
     word_candidate = [word for word in set(
-        wordsofdescription[i]) if word not in stopWords]
+        wordsofdescription[i]) if word not in stopWords and word and word[0].isalpha()]
     description_seperated = content[i][1:]
     def get_prior(word, i, description_seperated):
         idf = IDF[word]
@@ -140,38 +148,25 @@ for i in range(len(content)):
         wordlength = len(word)
         idf_local = math.log(len(description_seperated) /
                         sum([word in des.split(" ") for des in description_seperated]))
-        feature = np.array([tf, idf, tfidf, wordlength, idf_local])
+        # feature = np.array([tf, idf, tfidf, wordlength, idf_local])
+        feature = np.array([tfidf])
         feature = (feature - meanX) / np.sqrt(varX)
+        # return tfidf
         return model.predict_proba(feature.reshape(1, -1))[0, 1]
     word_candidate = sorted(word_candidate, key=lambda word: -get_prior(word, i, description_seperated))
-    top_one = word_candidate[:1]
-    top_two = word_candidate[:2]
-    top_three = word_candidate[:3]
+    top_one = set(word_candidate[:1])
+    top_two = set(word_candidate[:2])
+    top_three = set(word_candidate[:3])
     top_one_accuracy.append(sum([float(word in wordsofname[i])
                                  for word in top_one]) / len(top_one))
     top_two_accuracy.append(sum([float(word in wordsofname[i])
                             for word in top_two]) / len(top_two))
     top_three_accuracy.append(sum([float(word in wordsofname[i]) for word in top_three]) / len(top_three))
+    top_one_recall.append(sum([float(word in wordsofname[i])
+                                 for word in top_one]) / len(set(wordsofname[i])))
+    top_two_recall.append(sum([float(word in wordsofname[i])
+                            for word in top_two]) / len(set(wordsofname[i])))
+    top_three_recall.append(sum([float(word in wordsofname[i]) for word in top_three]) / len(set(wordsofname[i])))
 
 print([mean(top_one_accuracy), mean(top_two_accuracy), mean(top_three_accuracy)])
-
-
-# FNs = []
-# FPs = []
-
-# for threshhold in np.linspace(0, 1, 1001):
-#     Y_predict = 1.0 * (probtest > threshhold)
-#     Y_predict = Y_predict[:, 1]
-#     FN = ((1 - Y_predict) * (Y_test)).sum() / (Y_test).sum()
-#     FP = (Y_predict * (1 - Y_test)).sum() / (1 - Y_test).sum()
-#     FNs.append(FN)
-#     FPs.append(FP)
-
-# FNn = np.array(FNs)
-# FPn: ndarray = np.array(FPs)
-
-# plt.figure()
-# plt.scatter(1 - FNn, 1 - FPn)
-# plt.xlabel("1 - False Negative")
-# plt.ylabel("1 - False Positive")
-# plt.savefig("FP-FN-SVM.png", dpi=300)
+print([mean(top_one_recall), mean(top_two_recall), mean(top_three_recall)])
