@@ -86,8 +86,8 @@ for i in range(len(content)):
         wordlength = len(word)
         idf_local = math.log(len(description_seperated) /
                         sum([word in des.split(" ") for des in description_seperated]))
-        # X.append([tf, idf, tfidf, wordlength, idf_local])
-        X.append([tfidf])
+        X.append([tf, idf, tfidf, wordlength, idf_local])
+        # X.append([tfidf])
         Y.append(float(word in wordsofname[i]))
 
 def DuplicatePositiveSample(X, Y, positive_score):
@@ -148,8 +148,8 @@ for i in range(len(content)):
         wordlength = len(word)
         idf_local = math.log(len(description_seperated) /
                         sum([word in des.split(" ") for des in description_seperated]))
-        # feature = np.array([tf, idf, tfidf, wordlength, idf_local])
-        feature = np.array([tfidf])
+        feature = np.array([tf, idf, tfidf, wordlength, idf_local])
+        # feature = np.array([tfidf])
         feature = (feature - meanX) / np.sqrt(varX)
         # return tfidf
         return model.predict_proba(feature.reshape(1, -1))[0, 1]
