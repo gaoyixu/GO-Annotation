@@ -24,3 +24,11 @@ id_data.txt
 
 UniProtKB-ID-to-GeneID.txt
 	UniProtKB-ID + tab + GeneID
+
+*_word_frequency.txt
+    word + tab + frequency
+    (lowercase)
+
+glove.6B.50d.txt
+glove.6B.100d.txt
+glove.6B.200d.txt
