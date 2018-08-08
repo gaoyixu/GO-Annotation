@@ -151,8 +151,9 @@ for i in range(len(content)):
         feature = np.array([tf, idf, tfidf, wordlength, idf_local])
         # feature = np.array([tfidf])
         feature = (feature - meanX) / np.sqrt(varX)
+        return random.random()
         # return tfidf
-        return model.predict_proba(feature.reshape(1, -1))[0, 1]
+        # return model.predict_proba(feature.reshape(1, -1))[0, 1]
     word_candidate = sorted(word_candidate, key=lambda word: -get_prior(word, i, description_seperated))
     top_one = set(word_candidate[:1])
     top_two = set(word_candidate[:2])
