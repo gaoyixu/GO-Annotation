@@ -45,7 +45,3 @@ def cleaning(src_path, dst_path, lower_mode=True):
                     word_list.append(word)
                 item_cleaned_list.append(' '.join(word_list))
             fd.writelines('\t'.join(item_cleaned_list) + '\n')
-
-
-cleaning('data/term_name_def_descriptions_human.txt',
-         'data/data_clean_lower.txt', True)
