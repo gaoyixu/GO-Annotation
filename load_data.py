@@ -31,6 +31,6 @@ class DataSet:
         
 
 
-data_set = DataSet('data/glove.6B.200d.txt')
+data_set = DataSet('data/glove.6B.200d.frequency_more_than_3.txt')
 data_set.load_word2vec()
 print(data_set.word_embedding_dict.popitem())
