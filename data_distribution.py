@@ -15,6 +15,12 @@ Usage:
         'term_name_def_descriptions_human.txt')
     draw_term_gene_length_distribution(
         'term_name_def_descriptions_human.txt')
+
+    draw_word_frequency_distribution(
+        'all_word_frequency.txt')
+    show_words_not_in_vocabulary(
+        'data/go_dict_clean_lower.txt',
+        'data/glove.6B.50d.frequency_more_than_3.txt')
 """
 from matplotlib import pyplot as plt
 from numpy import mean, median
@@ -242,12 +248,12 @@ def draw_term_gene_length_distribution(filename):
     print(bins[max_i])
     print(n[max_i])
 
-    def bias(i):
-        if i < 100:
+    def bias(k):
+        if k < 100:
             return 0.2
-        elif i < 1000:
+        elif k < 1000:
             return 0
-        elif i < 10000:
+        elif k < 10000:
             return -0.05
 
     for i in range(1, len(n)):
@@ -258,3 +264,44 @@ def draw_term_gene_length_distribution(filename):
     plt.xlabel('Number of Gene Words Each Term')
     plt.ylabel('Count')
     plt.show()
+
+
+def draw_word_frequency_distribution(filename):
+    """Draw distribution for given word frequency.
+
+    Args:
+        filename: 'all_word_frequency.txt'
+    """
+    with open(filename) as fd:
+        lines = fd.readlines()
+    frequency_list = []
+    for line in lines:
+        word, frequency = line.split()
+        if 1 < int(frequency) < 40:
+            frequency_list.append(int(frequency))
+    plt.hist(frequency_list, bins=40)
+    plt.show()
+
+
+def show_words_not_in_vocabulary(target_file, vocab_file):
+    """Calculate the number of words not in vocabulary.
+
+    Args:
+        target_file: 'go_dict_clean_lower.txt'
+        vocab_file: 'glove.6B.50d.frequency_more_than_3.txt'
+    """
+    vocab_set = set()
+    with open(vocab_file) as fd:
+        lines = fd.readlines()
+        for line in lines:
+            vocab_set.add(line.split()[0])
+    with open(target_file) as fd:
+        lines = fd.readlines()
+        count = 0
+        for line in lines:
+            term_name = line.split()[1]
+            for word in term_name.split():
+                if word not in vocab_set:
+                    count += 1
+                    break
+        print(count, len(lines), count / len(lines))
