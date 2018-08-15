@@ -32,3 +32,9 @@ UniProtKB-ID-to-GeneID.txt
 glove.6B.50d.txt
 glove.6B.100d.txt
 glove.6B.200d.txt
+
+*frequency_more_than_3.txt
+    according to *_word_frequency.txt
+    
+*all_words.txt
+    according to *_word_frequency.txt
