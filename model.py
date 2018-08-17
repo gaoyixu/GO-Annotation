@@ -11,7 +11,8 @@ class Model:
         pass
 
     def train(self):
-        pass
+        with tf.Session() as sess:
+            sess.run(tf.initialize_all_variables())
 
     def evaluate(self):
         pass

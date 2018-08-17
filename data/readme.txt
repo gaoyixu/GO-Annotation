@@ -35,6 +35,6 @@ glove.6B.200d.txt
 
 *frequency_more_than_3.txt
     according to *_word_frequency.txt
-    
+
 *all_words.txt
     according to *_word_frequency.txt
