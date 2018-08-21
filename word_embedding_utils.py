@@ -6,6 +6,7 @@ Author:
 
 Usage:
     batch_generator(FILE_LIST, VOCAB_SIZE, SKIP_WINDOW, BATCH_SIZE)
+    dictionary, index_dictionary = load_vocab('visualization/vocab.tsv')
 """
 
 from collections import Counter
@@ -142,3 +143,20 @@ def batch_generator(file_path_list, vocab_size=5000,
         for i in range(batch_size):
             center_batch[i], target_batch[i] = next(single_gen)
         yield center_batch, target_batch
+
+
+def load_vocab(file_path):
+    """Load visualization/vocab.tsv
+
+    Args:
+        file_path: string
+    """
+    dictionary = {}
+    index_dictionary = {}
+    with open(file_path) as fd:
+        lines = fd.readlines()
+        for i, word in enumerate(lines):
+            word = word.strip()
+            dictionary[word] = i
+            index_dictionary[i] = word
+    return dictionary, index_dictionary
