@@ -1,15 +1,16 @@
-""" starter code for word2vec skip-gram model with NCE loss
-CS 20: "TensorFlow for Deep Learning Research"
-cs20.stanford.edu
-Chip Huyen (chiphuyen@cs.stanford.edu)
-Lecture 04
+"""Word embedding using skip-gram model with NCE loss.
+
+Author:
+    Yixu Gao
+    gaoyixu1996@outlook.com
+
+Simply run this file to train word embeddings.
 """
 
 import os
 
 import tensorflow as tf
 from tensorflow.contrib.tensorboard.plugins import projector
-
 import utils
 import word_embedding_utils
 
@@ -22,14 +23,14 @@ BATCH_SIZE = 128
 SKIP_WINDOW = 3
 EMBED_SIZE = 128
 NUM_SAMPLED = 500
-LEARNING_RATE = 0.1
-NUM_TRAIN_STEPS = 100000
+LEARNING_RATE = 0.01
+NUM_TRAIN_STEPS = 10000
 SKIP_STEP = 5000
 NUM_VISUALIZE = 3000
 
 
 class SkipGramModel:
-    """Build the graph for skip-gram model """
+    """Build the graph for skip-gram model."""
 
     def __init__(self, dataset, vocab_size, embed_size,
                  batch_size, num_sampled, learning_rate):
@@ -131,8 +132,20 @@ class SkipGramModel:
                     sess.run(self.iterator.initializer)
             writer.close()
 
+    def save_txt_file(self):
+        """Save trained embeddings to text file."""
+        dictionary, index_dictionary = word_embedding_utils.load_vocab(
+            'visualization/vocab.tsv')
+        with tf.Session() as sess:
+            with open('data/word_embedding.txt', 'w') as fd:
+                embed_matrix = sess.run(self.embed_matrix)
+                for i in range(VOCAB_SIZE):
+                    if i in index_dictionary:
+                        fd.write(index_dictionary[i] + '\t' + ' '.join(
+                            [str(x) for x in embed_matrix[i, :]]) + '\n')
+
     def visualize(self, visual_fld, num_visualize):
-        """ run "'tensorboard --logdir='visualization'" to see the embeddings """
+        """Run "'tensorboard --logdir='visualization'" to see embeddings."""
 
         # create the list of num_variable most common words to visualize
         word_embedding_utils.most_common_words(num_visualize)
@@ -140,7 +153,8 @@ class SkipGramModel:
         saver = tf.train.Saver()
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
-            ckpt = tf.train.get_checkpoint_state(os.path.dirname('checkpoints/checkpoint'))
+            ckpt = tf.train.get_checkpoint_state(os.path.dirname(
+                'checkpoints/checkpoint'))
 
             # if that checkpoint exists, restore from checkpoint
             if ckpt and ckpt.model_checkpoint_path:
@@ -149,7 +163,8 @@ class SkipGramModel:
             final_embed_matrix = sess.run(self.embed_matrix)
 
             # you have to store embeddings in a new variable
-            embedding_var = tf.Variable(final_embed_matrix[:num_visualize], name='embedding')
+            embedding_var = tf.Variable(final_embed_matrix[:num_visualize],
+                                        name='embedding')
             sess.run(embedding_var.initializer)
 
             config = projector.ProjectorConfig()
@@ -159,10 +174,11 @@ class SkipGramModel:
             embedding = config.embeddings.add()
             embedding.tensor_name = embedding_var.name
 
-            # link this tensor to its metadata file, in this case the first NUM_VISUALIZE words of vocab
+            # link this tensor to its metadata file,
+            # in this case the first NUM_VISUALIZE words of vocab
             embedding.metadata_path = 'vocab_' + str(num_visualize) + '.tsv'
 
-            # saves a configuration file that TensorBoard will read during startup.
+            # a configuration file that TensorBoard will read during startup.
             projector.visualize_embeddings(summary_writer, config)
             saver_embed = tf.train.Saver([embedding_var])
             saver_embed.save(sess, os.path.join(visual_fld, 'model.ckpt'), 1)
@@ -182,9 +198,11 @@ def main():
     dataset = tf.data.Dataset.from_generator(
         generator, (tf.int32, tf.int32),
         (tf.TensorShape([BATCH_SIZE]), tf.TensorShape([BATCH_SIZE, 1])))
-    model = SkipGramModel(dataset, VOCAB_SIZE, EMBED_SIZE, BATCH_SIZE, NUM_SAMPLED, LEARNING_RATE)
+    model = SkipGramModel(dataset, VOCAB_SIZE, EMBED_SIZE, BATCH_SIZE,
+                          NUM_SAMPLED, LEARNING_RATE)
     model.build_graph()
     model.train(NUM_TRAIN_STEPS)
+    model.save_txt_file()
     model.visualize('visualization', NUM_VISUALIZE)
 
 
