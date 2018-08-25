@@ -23,7 +23,8 @@ import os
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-SIGN_WORDS = ['PAD', 'UNK', '<s>', '<\s>']
+UNKNOWN_WORD = 'UNK'
+SIGN_WORDS = ['PAD', '<s>', '<\s>']
 
 
 class DataSet:
@@ -36,8 +37,6 @@ class DataSet:
         self.sign_words = sign_words
         self.word_vocab_list = []
         self.embedding_matrix = np.array([], dtype=np.float32)
-        self.int_to_vocab = {}
-        self.vocab_to_int = {}
         self.table = None
 
     def _load_word_embedding(self, vocab, file_path=''):
@@ -51,8 +50,6 @@ class DataSet:
         Returns:
             word_vocab_list: ['PAD', 'UNK', ...]
             embedding_matrix: 2-D matrix with vocab_size rows and dim columns
-            int_to_vocab: {0: 'PAD',1: 'UNK', ...}
-            vocab_to_int: {'PAD': 0, 'UNK': 1, ...}
         """
         if not file_path:
             file_path = self.word_embedding_path
@@ -63,10 +60,10 @@ class DataSet:
                 lines = fd.readlines()
 
                 self.word_vocab_list.extend(self.sign_words)
+
                 for _ in self.sign_words:
                     self.embedding_matrix = np.append(
-                        self.embedding_matrix, np.random.uniform(
-                            -1.0, 1.0, self.word_dimension))
+                        self.embedding_matrix, np.zeros(self.word_dimension))
 
                 for line in lines:
                     items = line.split()
@@ -77,21 +74,23 @@ class DataSet:
                         self.embedding_matrix = np.append(
                             self.embedding_matrix, embedding)
 
+            # For default unknown word
+            self.embedding_matrix = np.append(
+                self.embedding_matrix, np.random.uniform(
+                    -1.0, 1.0, self.word_dimension))
+
             self.embedding_matrix = np.reshape(
                 self.embedding_matrix,
                 [-1, self.word_dimension]).astype(np.float32)
 
-            for i, word in enumerate(self.word_vocab_list):
-                self.int_to_vocab[i] = word
-                self.vocab_to_int[word] = i
-
             self.table = tf.contrib.lookup.index_table_from_tensor(
                 self.word_vocab_list,
                 num_oov_buckets=1,
-                default_value=self.vocab_to_int['UNK'])
+                default_value=-1)
 
-            return (self.word_vocab_list, self.embedding_matrix,
-                    self.int_to_vocab, self.vocab_to_int)
+            print(len(self.word_vocab_list),
+                  len(self.embedding_matrix))
+            return self.word_vocab_list, self.embedding_matrix
 
         except OSError:
             current_path = os.path.abspath(__file__)
@@ -123,7 +122,8 @@ class DataSet:
         Returns:
             encoded sentence: 1-D int list of word index
         """
-        words = tf.sparse_tensor_to_dense(tf.string_split([sentence]), '')[0]
+        words = tf.sparse_tensor_to_dense(
+            tf.string_split([sentence]), '')[0]
         encoded_sentence = self.table.lookup(words)
         return encoded_sentence
 
