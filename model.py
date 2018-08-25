@@ -8,6 +8,7 @@ class Model:
         self.test_set = test_set
 
     def graph(self):
+
         pass
 
     def train(self):
