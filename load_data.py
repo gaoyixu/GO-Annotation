@@ -1,3 +1,21 @@
+"""Load data.
+
+Author:
+    Yixu Gao
+    gaoyixu1996@outlook.com
+
+Usage:
+    ds = DataSet(128, 'data/word_embedding.txt')
+    full_dataset = ds.load_dict_data('data/gene_dict_clean_lower.txt')
+    iterator = full_dataset.make_initializable_iterator()
+    with tf.Session() as sess:
+        sess.run(iterator.initializer)
+        sess.run(tf.global_variables_initializer())
+        sess.run(tf.tables_initializer())
+        print(sess.run(iterator.get_next()))
+"""
+
+
 import numpy as np
 import tensorflow as tf
 import os
