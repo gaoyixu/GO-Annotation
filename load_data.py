@@ -38,6 +38,8 @@ class DataSet:
         self.word_vocab_list = []
         self.embedding_matrix = np.array([], dtype=np.float32)
         self.table = None
+        self.dataset = None
+        self.dataset_size = 0
 
     def _load_word_embedding(self, vocab, file_path=''):
         """Load word embedding.
@@ -88,8 +90,6 @@ class DataSet:
                 num_oov_buckets=1,
                 default_value=-1)
 
-            print(len(self.word_vocab_list),
-                  len(self.embedding_matrix))
             return self.word_vocab_list, self.embedding_matrix
 
         except OSError:
@@ -113,17 +113,15 @@ class DataSet:
                 vocab.update(words)
         self._load_word_embedding(vocab)
 
-    def _encode_sentence_to_index(self, sentence):
+    def _encode_sentence_to_index(self, words):
         """Encode the sentence using vocab.
 
         Args:
-            sentence: tf.string
+            words: tf.string tensor
 
         Returns:
             encoded sentence: 1-D int list of word index
         """
-        words = tf.sparse_tensor_to_dense(
-            tf.string_split([sentence]), '')[0]
         encoded_sentence = self.table.lookup(words)
         return encoded_sentence
 
@@ -139,7 +137,7 @@ class DataSet:
         return tf.nn.embedding_lookup(
             self.embedding_matrix, indexed_sentence)
 
-    def _encode_sentence_to_embedding(self, _, sentence):
+    def _encode_sentence_to_embedding(self, sentence):
         """Encode the sentence using vocab.
 
         Args:
@@ -150,6 +148,30 @@ class DataSet:
         """
         indexed_sentence = self._encode_sentence_to_index(sentence)
         return self._encode_indexed_sentence_to_embedding(indexed_sentence)
+
+    def _split_train_test(self,
+                          batch_size,
+                          padded_shapes,
+                          train_div=0.8):
+        """Split dataset to training set and test set.
+
+        Args:
+            batch_size: int
+            padded_shapes: int
+            train_div: float in [0, 1]
+
+        Returns:
+            train_dataset, test_dataset
+        """
+        if self.dataset:
+            train_size = int(train_div * self.dataset_size)
+            self.dataset = (self.dataset
+                            .shuffle(10000)
+                            .padded_batch(batch_size, padded_shapes,
+                                          b'PAD'))
+            train_dataset = self.dataset.take(train_size)
+            test_dataset = self.dataset.skip(train_size)
+            return train_dataset, test_dataset
 
     def load_dict_data(self, file_path):
         """Load data for gene dict and go dict.
@@ -163,20 +185,22 @@ class DataSet:
                 e.g. (1, b'alpha-1-b glycoprotein')
         """
         self._load_word_embedding_for_file(file_path)
-        dataset = tf.data.TextLineDataset(file_path)
-        dataset = dataset.map(
+        with open(file_path) as fd:
+            lines = fd.readlines()
+        self.dataset_size = len(lines)
+        del lines
+        self.dataset = tf.data.TextLineDataset(file_path)
+        self.dataset = self.dataset.map(
             lambda x: tf.sparse_tensor_to_dense(
                 tf.string_split([x], '\t'), '')[0])
-        dataset = dataset.map(lambda x: (x[0], '<s> ' + x[1] + ' <\s>'))
-        dataset = dataset.map(self._encode_sentence_to_embedding)
-        return dataset
-
-
-ds = DataSet(128, 'data/word_embedding.txt')
-full_dataset = ds.load_dict_data('data/gene_dict_clean_lower.txt')
-iterator = full_dataset.make_initializable_iterator()
-with tf.Session() as sess:
-    sess.run(iterator.initializer)
-    sess.run(tf.global_variables_initializer())
-    sess.run(tf.tables_initializer())
-    print(sess.run(iterator.get_next()))
+        self.dataset = self.dataset.map(
+            lambda x: (x[0], tf.sparse_tensor_to_dense(
+                tf.string_split([x[1]]), '')[0][:13]))
+        self.dataset = self.dataset.map(
+            lambda x, y: tf.concat(
+                [tf.convert_to_tensor(['<s>'], dtype=tf.string),
+                 y, tf.convert_to_tensor(['<\s>'], dtype=tf.string)], 0))
+        train_dataset, test_dataset = self._split_train_test(2, 15)
+        train_dataset = train_dataset.map(self._encode_sentence_to_embedding)
+        test_dataset = test_dataset.map(self._encode_sentence_to_embedding)
+        return train_dataset, test_dataset
