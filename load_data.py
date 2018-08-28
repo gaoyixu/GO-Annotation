@@ -6,7 +6,8 @@ Author:
 
 Usage:
     ds = DataSet(128, 'data/word_embedding.txt')
-    full_dataset = ds.load_dict_data('data/gene_dict_clean_lower.txt')
+    train_dataset, test_dataset = ds.load_dict_data(
+        'data/gene_dict_clean_lower.txt')
     iterator = full_dataset.make_initializable_iterator()
     with tf.Session() as sess:
         sess.run(iterator.initializer)
