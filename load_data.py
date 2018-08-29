@@ -39,9 +39,6 @@ import os
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-UNKNOWN_WORD = 'UNK'
-SIGN_WORDS = ['PAD', '<s>', '<\s>']
-
 
 def load_word_embedding(vocab, word_embedding_path, sign_words=None):
     """Load word embedding.
