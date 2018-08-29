@@ -15,7 +15,7 @@ Usage:
         default_value=-1)
     total_words_num = len(word_vocab_list)
     ds = load_data.DataSet(
-        'data/gene_dict_clean_lower.txt', self.max_length)
+        'data/gene_dict_clean_lower.txt', 15, 32)
     train_dataset, test_dataset = ds.load_dict_data()
     iterator = full_dataset.make_initializable_iterator()
     with tf.Session() as sess:
@@ -115,7 +115,7 @@ def load_word_embedding_for_dict_file(file_path, word_embedding_path):
 
 
 class DataSet:
-    def __init__(self, file_path, max_length):
+    def __init__(self, file_path, max_length, batch_size):
         """
         Args:
             file_path: string, e.g. 'gene_dict_clean_lower.txt'
@@ -123,17 +123,16 @@ class DataSet:
         """
         self.file_path = file_path
         self.max_length = max_length
+        self.batch_size = batch_size
         self.dataset = None
         self.dataset_size = 0
 
     def _split_train_test(self,
-                          batch_size,
                           padded_shapes,
                           train_div=0.8):
         """Split dataset to training set and test set.
 
         Args:
-            batch_size: int
             padded_shapes: int
             train_div: float in [0, 1]
 
@@ -143,7 +142,8 @@ class DataSet:
         if self.dataset:
             train_size = int(train_div * self.dataset_size)
             self.dataset = (self.dataset
-                            .padded_batch(batch_size, padded_shapes,
+                            .padded_batch(self.batch_size,
+                                          padded_shapes,
                                           b'PAD'))
             train_dataset = self.dataset.take(train_size)
             test_dataset = self.dataset.skip(train_size)
@@ -171,5 +171,5 @@ class DataSet:
                 .map(lambda x: tf.concat(
                     [tf.convert_to_tensor(['<s>'], dtype=tf.string),
                      x, tf.convert_to_tensor(['<\s>'], dtype=tf.string)], 0)))
-            train_dataset, test_dataset = self._split_train_test(2, self.max_length)
+            train_dataset, test_dataset = self._split_train_test(self.max_length)
         return train_dataset, test_dataset

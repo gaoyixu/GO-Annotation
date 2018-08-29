@@ -1,149 +1,195 @@
-""" A clean, no_frills character-level generative language model.
+"""Auto-encoder
 
 Author:
     Yixu Gao
     gaoyixu1996@outlook.com
 """
-import os
-import random
-import time
-
 import tensorflow as tf
 
-import utils
+import os
+
+
+import load_data
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-
-def vocab_encode(text, vocab):
-    return [vocab.index(x) + 1 for x in text if x in vocab]
+NUM_EPOCHS = 1
 
 
-def vocab_decode(array, vocab):
-    return ''.join([vocab[x - 1] for x in array])
+class Model:
+    def __init__(self,
+                 max_length,
+                 embedding_dimension,
+                 encoder_hidden_sizes,
+                 decoder_hidden_size,
+                 batch_size):
+        self.max_length = max_length
+        self.embedding_dimension = embedding_dimension
+        self.vocab_size = 0
+        self.encoder_hidden_sizes = encoder_hidden_sizes
+        self.decoder_hidden_size = decoder_hidden_size
+        self.batch_size = batch_size
 
+        self.update = None
 
-def read_data(filename, vocab, window, overlap):
-    lines = [line.strip() for line in open(filename).readlines()]
-    while True:
-        random.shuffle(lines)
+    def graph(self, batch_data, embedded_batch_data,
+              one_hot_batch_data, decoder_length):
+        encoder_outputs, encoder_state = self._encoder(embedded_batch_data)
+        logits = self._decoder(embedded_batch_data, encoder_outputs, encoder_state, decoder_length)
+        self._loss(logits, batch_data, decoder_length)
 
-        for text in lines:
-            text = vocab_encode(text, vocab)
-            for start in range(0, len(text) - window, overlap):
-                chunk = text[start: start + window]
-                chunk += [0] * (window - len(chunk))
-                yield chunk
+    def _encoder(self, embedded_batch_data):
+        with tf.name_scope('encoder'):
+            fw_cells = [tf.nn.rnn_cell.DropoutWrapper(
+                tf.nn.rnn_cell.BasicLSTMCell(size))
+                      for size in self.encoder_hidden_sizes]
+            initial_states_fw = [cell.zero_state(
+                self.batch_size, dtype=tf.float32)
+                                 for cell in fw_cells]
+            bw_cells = [tf.nn.rnn_cell.DropoutWrapper(
+                tf.nn.rnn_cell.BasicLSTMCell(size))
+                for size in self.encoder_hidden_sizes]
+            initial_states_bw = [cell.zero_state(
+                self.batch_size, dtype=tf.float32)
+                for cell in bw_cells]
+            encoder_outputs_all, encoder_state_fw, encoder_state_bw = (
+                tf.contrib.rnn.stack_bidirectional_dynamic_rnn(
+                    fw_cells, bw_cells, embedded_batch_data,
+                    initial_states_fw=initial_states_fw,
+                    initial_states_bw=initial_states_bw,
+                    dtype=tf.float32))
+            encoder_outputs = tf.concat(encoder_outputs_all, 2)
+            encoder_state_c = tf.concat((encoder_state_fw[0].c,
+                                         encoder_state_bw[0].c), 1)
+            encoder_state_h = tf.concat((encoder_state_fw[0].h,
+                                         encoder_state_bw[0].h), 1)
+            encoder_state = tf.contrib.rnn.LSTMStateTuple(
+                c=encoder_state_c, h=encoder_state_h)
+        return encoder_outputs, encoder_state
 
+    def _decoder(self,
+                 batch_data,
+                 encoder_outputs,
+                 encoder_state,
+                 decoder_length,
+                 training_mode=True):
+        with tf.variable_scope("decoder/projection"):
+            self.projection_layer = tf.layers.Dense(self.vocab_size,
+                                                    use_bias=False)
 
-def read_batch(stream, batch_size):
-    batch = []
-    for element in stream:
-        batch.append(element)
-        if len(batch) == batch_size:
-            yield batch
-            batch = []
-    yield batch
+        with tf.name_scope('decoder'), tf.variable_scope('decoder') as decoder_scope:
+            if training_mode:
+                decoder_cell = tf.contrib.seq2seq.AttentionWrapper(
+                    tf.nn.rnn_cell.BasicLSTMCell(self.decoder_hidden_size * 2),
+                    tf.contrib.seq2seq.BahdanauAttention(
+                        self.decoder_hidden_size * 2,
+                        encoder_outputs, normalize=True),
+                    attention_layer_size=self.decoder_hidden_size * 2)
+                initial_state = decoder_cell.zero_state(
+                    dtype=tf.float32, batch_size=self.batch_size)
+                initial_state = initial_state.clone(cell_state=encoder_state)
+                helper = tf.contrib.seq2seq.TrainingHelper(
+                    batch_data, tf.cast(decoder_length, tf.int32))
+                decoder = tf.contrib.seq2seq.BasicDecoder(
+                    decoder_cell, helper, initial_state)
+                outputs, _, _ = tf.contrib.seq2seq.dynamic_decode(
+                    decoder, scope=decoder_scope)
+                decoder_output = outputs.rnn_output
+                logits = self.projection_layer(decoder_output)
+                logits_reshape = tf.concat(
+                    [logits,
+                     tf.zeros([self.batch_size,
+                               self.max_length - tf.shape(logits)[1],
+                               self.vocab_size])],
+                    axis=1)
+                return logits_reshape
 
+            else:
+                tiled_encoder_output = tf.contrib.seq2seq.tile_batch(
+                    tf.transpose(self.encoder_output, perm=[1, 0, 2]), multiplier=self.beam_width)
+                tiled_encoder_final_state = tf.contrib.seq2seq.tile_batch(self.encoder_state,
+                                                                          multiplier=self.beam_width)
+                tiled_seq_len = tf.contrib.seq2seq.tile_batch(self.X_len, multiplier=self.beam_width)
+                attention_mechanism = tf.contrib.seq2seq.BahdanauAttention(
+                    self.num_hidden * 2, tiled_encoder_output, memory_sequence_length=tiled_seq_len, normalize=True)
+                decoder_cell = tf.contrib.seq2seq.AttentionWrapper(decoder_cell, attention_mechanism,
+                                                                   attention_layer_size=self.num_hidden * 2)
+                initial_state = decoder_cell.zero_state(dtype=tf.float32, batch_size=self.batch_size * self.beam_width)
+                initial_state = initial_state.clone(cell_state=tiled_encoder_final_state)
+                decoder = tf.contrib.seq2seq.BeamSearchDecoder(
+                    cell=decoder_cell,
+                    embedding=self.embeddings,
+                    start_tokens=tf.fill([self.batch_size], tf.constant(2)),
+                    end_token=tf.constant(3),
+                    initial_state=initial_state,
+                    beam_width=self.beam_width,
+                    output_layer=self.projection_layer
+                )
+                outputs, _, _ = tf.contrib.seq2seq.dynamic_decode(
+                    decoder, output_time_major=True, maximum_iterations=summary_max_len, scope=decoder_scope)
+                self.prediction = tf.transpose(outputs.predicted_ids, perm=[1, 2, 0])
 
-class CharRNN(object):
-    def __init__(self, model):
-        self.model = model
-        self.path = 'data/' + model + '.txt'
-        self.vocab = (" $%'()+,-./0123456789:;=?ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                      "\\^_abcdefghijklmnopqrstuvwxyz{|}")
-        self.seq = tf.placeholder(tf.int32, [None, None])
-        self.temp = tf.constant(1.5)
-        self.hidden_sizes = [128, 256]
-        self.batch_size = 64
-        self.lr = 0.0003
-        self.skip_step = 1
-        self.num_steps = 50  # for RNN unrolled
-        self.len_generated = 200
-        self.gstep = tf.Variable(0, dtype=tf.int32, trainable=False, name='global_step')
+    def _loss(self, logits, decoder_target, decoder_length):
+        with tf.name_scope('loss'):
+            cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                logits=logits, labels=decoder_target)
+            weights = tf.sequence_mask(decoder_length, self.max_length, dtype=tf.float32)
+            loss = tf.reduce_sum(cross_entropy * weights / tf.to_float(self.batch_size))
 
-    def create_rnn(self, seq):
-        layers = [tf.nn.rnn_cell.GRUCell(size) for size in self.hidden_sizes]
-        cells = tf.nn.rnn_cell.MultiRNNCell(layers)
-        batch = tf.shape(seq)[0]
-        zero_states = cells.zero_state(batch, dtype=tf.float32)
-        self.in_state = tuple([tf.placeholder_with_default(state, [None, state.shape[1]])
-                               for state in zero_states])
-        # this line to calculate the real length of seq
-        # all seq are padded to be of the same length, which is num_steps
-        length = tf.reduce_sum(tf.reduce_max(tf.sign(seq), 2), 1)
-        self.output, self.out_state = tf.nn.dynamic_rnn(cells, seq, length, self.in_state)
-
-    def create_model(self):
-        seq = tf.one_hot(self.seq, len(self.vocab))
-        self.create_rnn(seq)
-        self.logits = tf.layers.dense(self.output, len(self.vocab), None)
-        loss = tf.nn.softmax_cross_entropy_with_logits(logits=self.logits[:, :-1],
-                                                       labels=seq[:, 1:])
-        self.loss = tf.reduce_sum(loss)
-        # sample the next character from Maxwell-Boltzmann Distribution
-        # with temperature temp. It works equally well without tf.exp
-        self.sample = tf.multinomial(tf.exp(self.logits[:, -1] / self.temp), 1)[:, 0]
-        self.opt = tf.train.AdamOptimizer(self.lr).minimize(self.loss, global_step=self.gstep)
+        with tf.name_scope('optimizer'):
+            params = tf.trainable_variables()
+            gradients = tf.gradients(loss, params)
+            clipped_gradients, _ = tf.clip_by_global_norm(gradients, 5.0)
+            optimizer = tf.train.AdamOptimizer(0.01)
+            self.update = optimizer.apply_gradients(
+                zip(clipped_gradients, params),
+                global_step=tf.Variable(0, trainable=False))
 
     def train(self):
-        saver = tf.train.Saver()
-        start = time.time()
-        min_loss = None
+        with tf.name_scope('dataset'):
+            ds = load_data.DataSet(
+                'data/gene_dict_clean_lower.txt',
+                self.max_length, self.batch_size)
+            train_dataset, test_dataset = ds.load_dict_data()
+            iterator = train_dataset.make_initializable_iterator()
+
+        with tf.name_scope('embedding'):
+            word_vocab_list, embedding_matrix = (
+                load_data.load_word_embedding_for_dict_file(
+                    'data/gene_dict_clean_lower.txt',
+                    'data/word_embedding.txt'))
+
+            index_table = tf.contrib.lookup.index_table_from_tensor(
+                word_vocab_list,
+                num_oov_buckets=1,
+                default_value=-1)
+            self.vocab_size = len(word_vocab_list)
+
         with tf.Session() as sess:
-            writer = tf.summary.FileWriter('graphs/gist', sess.graph)
+            sess.run(tf.tables_initializer())
+
+            batch_data = index_table.lookup(iterator.get_next())
+            decoder_length = tf.where(tf.equal(batch_data, 2))[:, -1] + 1
+            embedded_batch_data = tf.nn.embedding_lookup(
+                embedding_matrix, batch_data)
+            one_hot_batch_data = tf.one_hot(batch_data, self.vocab_size)
+
+            self.graph(batch_data,
+                       embedded_batch_data,
+                       one_hot_batch_data,
+                       decoder_length)
+
             sess.run(tf.global_variables_initializer())
+            tf.summary.FileWriter('graphs/test', sess.graph)
 
-            ckpt = tf.train.get_checkpoint_state(os.path.dirname('checkpoints/' + self.model + '/checkpoint'))
-            if ckpt and ckpt.model_checkpoint_path:
-                saver.restore(sess, ckpt.model_checkpoint_path)
+            for i in range(NUM_EPOCHS):
+                sess.run(iterator.initializer)
+                try:
+                    sess.run(self.update)
 
-            iteration = self.gstep.eval()
-            stream = read_data(self.path, self.vocab, self.num_steps, overlap=self.num_steps // 2)
-            data = read_batch(stream, self.batch_size)
-            while True:
-                batch = next(data)
-
-                # for batch in read_batch(read_data(DATA_PATH, vocab)):
-                batch_loss, _ = sess.run([self.loss, self.opt], {self.seq: batch})
-                if (iteration + 1) % self.skip_step == 0:
-                    print('Iter {}. \n    Loss {}. Time {}'.format(iteration, batch_loss, time.time() - start))
-                    self.online_infer(sess)
-                    start = time.time()
-                    checkpoint_name = 'checkpoints/' + self.model + '/char-rnn'
-                    if min_loss is None:
-                        saver.save(sess, checkpoint_name, iteration)
-                    elif batch_loss < min_loss:
-                        saver.save(sess, checkpoint_name, iteration)
-                        min_loss = batch_loss
-                iteration += 1
-
-    def online_infer(self, sess):
-        """ Generate sequence one character at a time, based on the previous character
-        """
-        for seed in ['Hillary', 'I', 'R', 'T', '@', 'N', 'M', '.', 'G', 'A', 'W']:
-            sentence = seed
-            state = None
-            for _ in range(self.len_generated):
-                batch = [vocab_encode(sentence[-1], self.vocab)]
-                feed = {self.seq: batch}
-                if state is not None:  # for the first decoder step, the state is None
-                    for i in range(len(state)):
-                        feed.update({self.in_state[i]: state[i]})
-                index, state = sess.run([self.sample, self.out_state], feed)
-                sentence += vocab_decode(index, self.vocab)
-            print('\t' + sentence)
+                except tf.errors.OutOfRangeError:
+                    pass
 
 
-def main():
-    model = 'trump_tweets'
-    utils.safe_mkdir('checkpoints')
-    utils.safe_mkdir('checkpoints/' + model)
-
-    lm = CharRNN(model)
-    lm.create_model()
-    lm.train()
-
-
-if __name__ == '__main__':
-    main()
+model = Model(15, 128, [256], 256, 32)
+model.train()

@@ -13,58 +13,91 @@ NUM_EPOCHS = 1
 class Model:
     def __init__(self,
                  max_length,
+                 embedding_dimension,
                  encoder_hidden_sizes,
                  decoder_hidden_size,
                  batch_size):
         self.max_length = max_length
+        self.embedding_dimension = embedding_dimension
+        self.vocab_size = 0
         self.encoder_hidden_sizes = encoder_hidden_sizes
         self.decoder_hidden_size = decoder_hidden_size
         self.batch_size = batch_size
-        pass
 
-    def graph(self):
-        tf.get_variable('')
-        pass
+        self.update = None
 
-    def _encoder(self, batch_data):
+    def graph(self, batch_data, embedded_batch_data,
+              one_hot_batch_data, decoder_length):
+        encoder_outputs, encoder_state = self._encoder(embedded_batch_data)
+        logits = self._decoder(embedded_batch_data, encoder_outputs, encoder_state, decoder_length)
+        self._loss(logits, batch_data, decoder_length)
+
+    def _encoder(self, embedded_batch_data):
         with tf.name_scope('encoder'):
             fw_cells = [tf.nn.rnn_cell.DropoutWrapper(
                 tf.nn.rnn_cell.BasicLSTMCell(size))
                       for size in self.encoder_hidden_sizes]
+            initial_states_fw = [cell.zero_state(
+                self.batch_size, dtype=tf.float32)
+                                 for cell in fw_cells]
             bw_cells = [tf.nn.rnn_cell.DropoutWrapper(
                 tf.nn.rnn_cell.BasicLSTMCell(size))
-                      for size in self.encoder_hidden_sizes]
+                for size in self.encoder_hidden_sizes]
+            initial_states_bw = [cell.zero_state(
+                self.batch_size, dtype=tf.float32)
+                for cell in bw_cells]
             encoder_outputs_all, encoder_state_fw, encoder_state_bw = (
                 tf.contrib.rnn.stack_bidirectional_dynamic_rnn(
-                    fw_cells, bw_cells, batch_data, dtype=tf.float32))
+                    fw_cells, bw_cells, embedded_batch_data,
+                    initial_states_fw=initial_states_fw,
+                    initial_states_bw=initial_states_bw,
+                    dtype=tf.float32))
             encoder_outputs = tf.concat(encoder_outputs_all, 2)
-            encoder_state_c = tf.concat((encoder_state_fw[0].c, encoder_state_bw[0].c), 1)
-            encoder_state_h = tf.concat((encoder_state_fw[0].h, encoder_state_bw[0].h), 1)
-            encoder_state = tf.contrib.rnn.LSTMStateTuple(c=encoder_state_c, h=encoder_state_h)
+            encoder_state_c = tf.concat((encoder_state_fw[0].c,
+                                         encoder_state_bw[0].c), 1)
+            encoder_state_h = tf.concat((encoder_state_fw[0].h,
+                                         encoder_state_bw[0].h), 1)
+            encoder_state = tf.contrib.rnn.LSTMStateTuple(
+                c=encoder_state_c, h=encoder_state_h)
         return encoder_outputs, encoder_state
 
-    def _decoder(self, batch_data, encoder_outputs, encoder_state, training_mode=True):
-        with tf.name_scope('decoder'), tf.variable_scope("decoder") as decoder_scope:
+    def _decoder(self,
+                 batch_data,
+                 encoder_outputs,
+                 encoder_state,
+                 decoder_length,
+                 training_mode=True):
+        with tf.variable_scope("decoder/projection"):
+            self.projection_layer = tf.layers.Dense(self.vocab_size,
+                                                    use_bias=False)
+
+        with tf.name_scope('decoder'), tf.variable_scope('decoder') as decoder_scope:
             if training_mode:
                 decoder_cell = tf.contrib.seq2seq.AttentionWrapper(
                     tf.nn.rnn_cell.BasicLSTMCell(self.decoder_hidden_size * 2),
                     tf.contrib.seq2seq.BahdanauAttention(
                         self.decoder_hidden_size * 2,
-                        encoder_outputs,
-                        normalize=True),
+                        encoder_outputs, normalize=True),
                     attention_layer_size=self.decoder_hidden_size * 2)
                 initial_state = decoder_cell.zero_state(
                     dtype=tf.float32, batch_size=self.batch_size)
                 initial_state = initial_state.clone(cell_state=encoder_state)
-                helper = tf.contrib.seq2seq.TrainingHelper(batch_data, self.max_length)
-                decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell, helper, initial_state)
-                outputs, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder, scope=decoder_scope)
-                self.decoder_output = outputs.rnn_output
-                self.logits = self.projection_layer(self.decoder_output)
-                self.logits_reshape = tf.concat(
-                    [self.logits,
-                     tf.zeros([self.batch_size, summary_max_len - tf.shape(self.logits)[1], self.vocabulary_size])],
+                helper = tf.contrib.seq2seq.TrainingHelper(
+                    batch_data, tf.cast(decoder_length, tf.int32))
+                decoder = tf.contrib.seq2seq.BasicDecoder(
+                    decoder_cell, helper, initial_state)
+                outputs, _, _ = tf.contrib.seq2seq.dynamic_decode(
+                    decoder, scope=decoder_scope)
+                decoder_output = outputs.rnn_output
+                logits = self.projection_layer(decoder_output)
+                logits_reshape = tf.concat(
+                    [logits,
+                     tf.zeros([self.batch_size,
+                               self.max_length - tf.shape(logits)[1],
+                               self.vocab_size])],
                     axis=1)
+                return logits_reshape
+
             else:
                 tiled_encoder_output = tf.contrib.seq2seq.tile_batch(
                     tf.transpose(self.encoder_output, perm=[1, 0, 2]), multiplier=self.beam_width)
@@ -90,60 +123,67 @@ class Model:
                     decoder, output_time_major=True, maximum_iterations=summary_max_len, scope=decoder_scope)
                 self.prediction = tf.transpose(outputs.predicted_ids, perm=[1, 2, 0])
 
-    def _loss(self):
-        with tf.name_scope("loss"):
-            if not forward_only:
-                crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                    logits=self.logits_reshape, labels=self.decoder_target)
-                weights = tf.sequence_mask(self.decoder_len, summary_max_len, dtype=tf.float32)
-                self.loss = tf.reduce_sum(crossent * weights / tf.to_float(self.batch_size))
+    def _loss(self, logits, decoder_target, decoder_length):
+        with tf.name_scope('loss'):
+            cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                logits=logits, labels=decoder_target)
+            weights = tf.sequence_mask(decoder_length, self.max_length, dtype=tf.float32)
+            loss = tf.reduce_sum(cross_entropy * weights / tf.to_float(self.batch_size))
 
-                params = tf.trainable_variables()
-                gradients = tf.gradients(self.loss, params)
-                clipped_gradients, _ = tf.clip_by_global_norm(gradients, 5.0)
-                optimizer = tf.train.AdamOptimizer(self.learning_rate)
-                self.update = optimizer.apply_gradients(zip(clipped_gradients, params), global_step=self.global_step)
+        with tf.name_scope('optimizer'):
+            params = tf.trainable_variables()
+            gradients = tf.gradients(loss, params)
+            clipped_gradients, _ = tf.clip_by_global_norm(gradients, 5.0)
+            optimizer = tf.train.AdamOptimizer(0.01)
+            self.update = optimizer.apply_gradients(
+                zip(clipped_gradients, params),
+                global_step=tf.Variable(0, trainable=False))
 
     def train(self):
+        with tf.name_scope('dataset'):
+            ds = load_data.DataSet(
+                'data/gene_dict_clean_lower.txt',
+                self.max_length, self.batch_size)
+            train_dataset, test_dataset = ds.load_dict_data()
+            iterator = train_dataset.make_initializable_iterator()
+
         with tf.name_scope('embedding'):
             word_vocab_list, embedding_matrix = (
                 load_data.load_word_embedding_for_dict_file(
                     'data/gene_dict_clean_lower.txt',
                     'data/word_embedding.txt'))
+
             index_table = tf.contrib.lookup.index_table_from_tensor(
                 word_vocab_list,
                 num_oov_buckets=1,
                 default_value=-1)
-            total_words_num = len(word_vocab_list)
-
-        with tf.name_scope('dataset'):
-            ds = load_data.DataSet(
-                'data/gene_dict_clean_lower.txt', self.max_length)
-            train_dataset, test_dataset = ds.load_dict_data()
-
-        iterator = train_dataset.make_initializable_iterator()
+            self.vocab_size = len(word_vocab_list)
 
         with tf.Session() as sess:
-            tf.summary.FileWriter('graphs/test', sess.graph)
-            sess.run(tf.global_variables_initializer())
             sess.run(tf.tables_initializer())
+
+            batch_data = index_table.lookup(iterator.get_next())
+            decoder_length = tf.where(tf.equal(batch_data, 2))[:, -1] + 1
+            embedded_batch_data = tf.nn.embedding_lookup(
+                embedding_matrix, batch_data)
+            one_hot_batch_data = tf.one_hot(batch_data, self.vocab_size)
+
+            self.graph(batch_data,
+                       embedded_batch_data,
+                       one_hot_batch_data,
+                       decoder_length)
+
+            sess.run(tf.global_variables_initializer())
+            tf.summary.FileWriter('graphs/test', sess.graph)
+
             for i in range(NUM_EPOCHS):
                 sess.run(iterator.initializer)
                 try:
-                    # while True:
-                        current_str = iterator.get_next()
-                        current = index_table.lookup(current_str)
-                        print(sess.run(current_str))
-                        print(sess.run(current))
-                        print(sess.run(tf.nn.embedding_lookup(
-                            embedding_matrix, current)))
-                        print(sess.run(tf.one_hot(current, total_words_num)))
+                    sess.run(self.update)
+
                 except tf.errors.OutOfRangeError:
                     pass
 
-    def evaluate(self):
-        pass
 
-
-model = Model(15, [256], 256, 32)
+model = Model(15, 128, [256], 256, 32)
 model.train()
