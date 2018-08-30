@@ -120,7 +120,7 @@ class Model:
                     output_layer=self.projection_layer
                 )
                 outputs, _, _ = tf.contrib.seq2seq.dynamic_decode(
-                    decoder, output_time_major=True, maximum_iterations=summary_max_len, scope=decoder_scope)
+                    decoder, maximum_iterations=self.max_length, scope=decoder_scope)
                 self.prediction = tf.transpose(outputs.predicted_ids, perm=[1, 2, 0])
 
     def _loss(self, logits, decoder_target, decoder_length):
