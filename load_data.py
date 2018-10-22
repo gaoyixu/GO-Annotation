@@ -40,6 +40,82 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
+def load_data_clean_lower(
+        file_path,
+        max_gene_length=18,
+        max_gene_num=50,
+        max_term_length=18,
+        batch_size=5,
+        train_div=0.8,
+        simple_concat=False):
+    """Load data_clean_lower.txt
+
+    Args:
+        file_path: string, e.g. data_clean_lower.txt
+        max_gene_length: int
+        max_gene_num: int
+        max_term_length: int
+        batch_size: int
+        train_div: float in (0, 1), e.g. 0.8
+        simple_concat: bool
+
+    Returns:
+        train_input_data, test_input_data:
+            list with shape of
+                if simple_concat:
+                    (batch_num, batch_size,
+                    max_gene_num * (max_gene_length + 2))
+                else:
+                    (batch_num, batch_size, max_gene_num, max_gene_length + 2)
+        train_output_data, test_output_data:
+            list with shape of
+                (batch_num, batch_size, max_term_length + 2)
+    """
+    with open(file_path) as fd:
+        lines = fd.readlines()
+        input_data = []
+        input_data_batch = []
+        output_data = []
+        output_data_batch = []
+        dataset_size = len(lines)
+        for i in range(dataset_size):
+            line = lines[i]
+            items = line.split('\t')
+            term_name = items[0]
+            term_words = ['<s>'] + term_name.split()[:max_term_length] + ['<\s>']
+            term_words_list = term_words + ['<PAD>'] * (max_term_length + 2 - len(term_words))
+            descriptions = items[2:2 + max_gene_num]
+            descriptions_num = len(descriptions)
+            gene_words_list = []
+            for j in range(max_gene_num):
+                if j < descriptions_num:
+                    description = descriptions[j]
+                    description_words = ['<s>'] + description.split()[:max_gene_length] + ['<\s>']
+                else:
+                    description_words = []
+                description_words += ['<PAD>'] * (max_gene_length + 2 - len(description_words))
+                if simple_concat:
+                    gene_words_list += description_words
+                else:
+                    gene_words_list.append(description_words)
+            input_data_batch.append(gene_words_list)
+            output_data_batch.append(term_words_list)
+            if not (i + 1) % batch_size:
+                input_data.append(input_data_batch)
+                input_data_batch = []
+                output_data.append(output_data_batch)
+                output_data_batch = []
+        train_size = int(train_div * (dataset_size / batch_size))
+        train_input_data = input_data[:train_size]
+        train_output_data = output_data[train_size:]
+        test_input_data = input_data[:train_size]
+        test_output_data = output_data[train_size:]
+        print(np.shape(train_input_data))
+        print(np.shape(test_output_data))
+        return (train_input_data, train_output_data,
+                test_input_data, test_output_data)
+
+
 def load_word_embedding(vocab, word_embedding_path, sign_words=None):
     """Load word embedding.
 

@@ -112,9 +112,11 @@ class Model:
                 tiled_seq_len = tf.contrib.seq2seq.tile_batch(self.X_len, multiplier=self.beam_width)
                 attention_mechanism = tf.contrib.seq2seq.BahdanauAttention(
                     self.num_hidden * 2, tiled_encoder_output, memory_sequence_length=tiled_seq_len, normalize=True)
-                decoder_cell = tf.contrib.seq2seq.AttentionWrapper(decoder_cell, attention_mechanism,
-                                                                   attention_layer_size=self.num_hidden * 2)
-                initial_state = decoder_cell.zero_state(dtype=tf.float32, batch_size=self.batch_size * self.beam_width)
+                decoder_cell = tf.contrib.seq2seq.AttentionWrapper(
+                    decoder_cell, attention_mechanism,
+                    attention_layer_size=self.num_hidden * 2)
+                initial_state = decoder_cell.zero_state(
+                    dtype=tf.float32, batch_size=self.batch_size * self.beam_width)
                 initial_state = initial_state.clone(cell_state=tiled_encoder_final_state)
                 decoder = tf.contrib.seq2seq.BeamSearchDecoder(
                     cell=decoder_cell,

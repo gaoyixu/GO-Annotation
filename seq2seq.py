@@ -145,11 +145,11 @@ class Model:
 
     def train(self):
         with tf.name_scope('dataset'):
-            ds = load_data.DataSet(
-                'data/gene_dict_clean_lower.txt',
-                self.max_length, self.batch_size)
-            train_dataset, test_dataset = ds.load_dict_data()
-            iterator = train_dataset.make_initializable_iterator()
+            (train_input_data,
+             train_output_data,
+             test_input_data,
+             test_output_data) = load_data.load_data_clean_lower(
+                'data/data_clean_lower.txt', 18, 10, simple_concat=True)
 
         with tf.name_scope('embedding'):
             word_vocab_list, embedding_matrix = (
@@ -162,34 +162,42 @@ class Model:
                 num_oov_buckets=1,
                 default_value=-1)
             self.vocab_size = len(word_vocab_list)
+            print()
 
         with tf.Session() as sess:
             sess.run(tf.tables_initializer())
+            for i in range(len(train_input_data)):
+                input_batch_data = index_table.lookup(
+                    tf.convert_to_tensor(train_input_data[i]))
+                output_batch_data = index_table.lookup(
+                    tf.convert_to_tensor(train_output_data[i]))
+                decoder_length = tf.where(tf.equal(output_batch_data, 2))[:, -1] + 1
+                embedded_input_batch_data = tf.nn.embedding_lookup(
+                    embedding_matrix, input_batch_data)
+                embedded_output_batch_data = tf.nn.embedding_lookup(
+                    embedding_matrix, output_batch_data)
+                one_hot_input_batch_data = tf.one_hot(
+                    input_batch_data, self.vocab_size)
+                one_hot_input_batch_data = tf.one_hot(
+                    output_batch_data, self.vocab_size)
 
-            batch_data = index_table.lookup(iterator.get_next())
-            decoder_length = tf.where(tf.equal(batch_data, 2))[:, -1] + 1
-            embedded_batch_data = tf.nn.embedding_lookup(
-                embedding_matrix, batch_data)
-            one_hot_batch_data = tf.one_hot(batch_data, self.vocab_size)
+                self.graph(batch_data,
+                           embedded_batch_data,
+                           one_hot_batch_data,
+                           decoder_length)
 
-            self.graph(batch_data,
-                       embedded_batch_data,
-                       one_hot_batch_data,
-                       decoder_length)
+                sess.run(tf.global_variables_initializer())
+                tf.summary.FileWriter('graphs/test', sess.graph)
 
-            sess.run(tf.global_variables_initializer())
-            tf.summary.FileWriter('graphs/test', sess.graph)
+                for j in range(NUM_EPOCHS):
+                    try:
+                        a = sess.run(self.update)
+                        b = sess.run(self.loss)
+                        print(a)
+                        print(b)
 
-            for i in range(NUM_EPOCHS):
-                sess.run(iterator.initializer)
-                try:
-                    a = sess.run(self.update)
-                    b = sess.run(self.loss)
-                    print(a)
-                    print(b)
-
-                except tf.errors.OutOfRangeError:
-                    pass
+                    except tf.errors.OutOfRangeError:
+                        pass
 
     def test(self):
         with tf.Session() as sess:
