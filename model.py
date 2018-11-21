@@ -2,21 +2,16 @@ import tensorflow as tf
 
 import os
 
-
 import load_data
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-NUM_EPOCHS = 1
+NUM_EPOCHS = 20
 
 
 class Model:
-    def __init__(self,
-                 max_length,
-                 embedding_dimension,
-                 encoder_hidden_sizes,
-                 decoder_hidden_size,
-                 batch_size):
+    def __init__(self, max_length, embedding_dimension, encoder_hidden_sizes,
+                 decoder_hidden_size, batch_size):
         self.max_length = max_length
         self.embedding_dimension = embedding_dimension
         self.vocab_size = 0
@@ -27,38 +22,47 @@ class Model:
         self.loss = None
         self.update = None
 
-    def graph(self, batch_data, embedded_batch_data,
-              one_hot_batch_data, decoder_length):
+    def graph(self, batch_data, embedded_batch_data, one_hot_batch_data,
+              decoder_length):
         encoder_outputs, encoder_state = self._encoder(embedded_batch_data)
-        logits = self._decoder(embedded_batch_data, encoder_outputs, encoder_state, decoder_length)
+        logits = self._decoder(embedded_batch_data, encoder_outputs,
+                               encoder_state, decoder_length)
         loss = self._loss(logits, batch_data, decoder_length)
         self._optimizer(loss)
 
     def _encoder(self, embedded_batch_data):
         with tf.name_scope('encoder'):
-            fw_cells = [tf.nn.rnn_cell.DropoutWrapper(
-                tf.nn.rnn_cell.BasicLSTMCell(size))
-                      for size in self.encoder_hidden_sizes]
-            initial_states_fw = [cell.zero_state(
-                self.batch_size, dtype=tf.float32)
-                                 for cell in fw_cells]
-            bw_cells = [tf.nn.rnn_cell.DropoutWrapper(
-                tf.nn.rnn_cell.BasicLSTMCell(size))
-                for size in self.encoder_hidden_sizes]
-            initial_states_bw = [cell.zero_state(
-                self.batch_size, dtype=tf.float32)
-                for cell in bw_cells]
+            fw_cells = [
+                tf.nn.rnn_cell.DropoutWrapper(
+                    tf.nn.rnn_cell.BasicLSTMCell(size))
+                for size in self.encoder_hidden_sizes
+            ]
+            initial_states_fw = [
+                cell.zero_state(self.batch_size, dtype=tf.float32)
+                for cell in fw_cells
+            ]
+            bw_cells = [
+                tf.nn.rnn_cell.DropoutWrapper(
+                    tf.nn.rnn_cell.BasicLSTMCell(size))
+                for size in self.encoder_hidden_sizes
+            ]
+            initial_states_bw = [
+                cell.zero_state(self.batch_size, dtype=tf.float32)
+                for cell in bw_cells
+            ]
             encoder_outputs_all, encoder_state_fw, encoder_state_bw = (
                 tf.contrib.rnn.stack_bidirectional_dynamic_rnn(
-                    fw_cells, bw_cells, embedded_batch_data,
+                    fw_cells,
+                    bw_cells,
+                    embedded_batch_data,
                     initial_states_fw=initial_states_fw,
                     initial_states_bw=initial_states_bw,
                     dtype=tf.float32))
             encoder_outputs = tf.concat(encoder_outputs_all, 2)
-            encoder_state_c = tf.concat((encoder_state_fw[0].c,
-                                         encoder_state_bw[0].c), 1)
-            encoder_state_h = tf.concat((encoder_state_fw[0].h,
-                                         encoder_state_bw[0].h), 1)
+            encoder_state_c = tf.concat(
+                (encoder_state_fw[0].c, encoder_state_bw[0].c), 1)
+            encoder_state_h = tf.concat(
+                (encoder_state_fw[0].h, encoder_state_bw[0].h), 1)
             encoder_state = tf.contrib.rnn.LSTMStateTuple(
                 c=encoder_state_c, h=encoder_state_h)
         return encoder_outputs, encoder_state
@@ -70,16 +74,18 @@ class Model:
                  decoder_length,
                  training_mode=True):
         with tf.variable_scope("decoder/projection"):
-            self.projection_layer = tf.layers.Dense(self.vocab_size,
-                                                    use_bias=False)
+            self.projection_layer = tf.layers.Dense(
+                self.vocab_size, use_bias=False)
 
-        with tf.name_scope('decoder'), tf.variable_scope('decoder') as decoder_scope:
+        with tf.name_scope('decoder'), tf.variable_scope(
+                'decoder') as decoder_scope:
             if training_mode:
                 decoder_cell = tf.contrib.seq2seq.AttentionWrapper(
                     tf.nn.rnn_cell.BasicLSTMCell(self.decoder_hidden_size * 2),
                     tf.contrib.seq2seq.BahdanauAttention(
                         self.decoder_hidden_size * 2,
-                        encoder_outputs, normalize=True),
+                        encoder_outputs,
+                        normalize=True),
                     attention_layer_size=self.decoder_hidden_size * 2)
                 initial_state = decoder_cell.zero_state(
                     dtype=tf.float32, batch_size=self.batch_size)
@@ -92,26 +98,38 @@ class Model:
                     decoder, scope=decoder_scope)
                 decoder_output = outputs.rnn_output
                 logits = self.projection_layer(decoder_output)
-                logits_reshape = tf.concat(
-                    [logits,
-                     tf.zeros([self.batch_size,
-                               self.max_length - tf.shape(logits)[1],
-                               self.vocab_size])],
-                    axis=1)
+                logits_reshape = tf.concat([
+                    logits,
+                    tf.zeros([
+                        self.batch_size, self.max_length - tf.shape(logits)[1],
+                        self.vocab_size
+                    ])
+                ],
+                                           axis=1)
                 return logits_reshape
 
             else:
                 tiled_encoder_output = tf.contrib.seq2seq.tile_batch(
-                    tf.transpose(self.encoder_output, perm=[1, 0, 2]), multiplier=self.beam_width)
-                tiled_encoder_final_state = tf.contrib.seq2seq.tile_batch(self.encoder_state,
-                                                                          multiplier=self.beam_width)
-                tiled_seq_len = tf.contrib.seq2seq.tile_batch(self.X_len, multiplier=self.beam_width)
+                    tf.transpose(self.encoder_output, perm=[1, 0, 2]),
+                    multiplier=self.beam_width)
+                tiled_encoder_final_state = tf.contrib.seq2seq.tile_batch(
+                    self.encoder_state, multiplier=self.beam_width)
+                tiled_seq_len = tf.contrib.seq2seq.tile_batch(
+                    self.X_len, multiplier=self.beam_width)
                 attention_mechanism = tf.contrib.seq2seq.BahdanauAttention(
-                    self.num_hidden * 2, tiled_encoder_output, memory_sequence_length=tiled_seq_len, normalize=True)
-                decoder_cell = tf.contrib.seq2seq.AttentionWrapper(decoder_cell, attention_mechanism,
-                                                                   attention_layer_size=self.num_hidden * 2)
-                initial_state = decoder_cell.zero_state(dtype=tf.float32, batch_size=self.batch_size * self.beam_width)
-                initial_state = initial_state.clone(cell_state=tiled_encoder_final_state)
+                    self.num_hidden * 2,
+                    tiled_encoder_output,
+                    memory_sequence_length=tiled_seq_len,
+                    normalize=True)
+                decoder_cell = tf.contrib.seq2seq.AttentionWrapper(
+                    decoder_cell,
+                    attention_mechanism,
+                    attention_layer_size=self.num_hidden * 2)
+                initial_state = decoder_cell.zero_state(
+                    dtype=tf.float32,
+                    batch_size=self.batch_size * self.beam_width)
+                initial_state = initial_state.clone(
+                    cell_state=tiled_encoder_final_state)
                 decoder = tf.contrib.seq2seq.BeamSearchDecoder(
                     cell=decoder_cell,
                     embedding=self.embeddings,
@@ -119,18 +137,22 @@ class Model:
                     end_token=tf.constant(3),
                     initial_state=initial_state,
                     beam_width=self.beam_width,
-                    output_layer=self.projection_layer
-                )
+                    output_layer=self.projection_layer)
                 outputs, _, _ = tf.contrib.seq2seq.dynamic_decode(
-                    decoder, maximum_iterations=self.max_length, scope=decoder_scope)
-                self.prediction = tf.transpose(outputs.predicted_ids, perm=[1, 2, 0])
+                    decoder,
+                    maximum_iterations=self.max_length,
+                    scope=decoder_scope)
+                self.prediction = tf.transpose(
+                    outputs.predicted_ids, perm=[1, 2, 0])
 
     def _loss(self, logits, decoder_target, decoder_length):
         with tf.name_scope('loss'):
             cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 logits=logits, labels=decoder_target)
-            weights = tf.sequence_mask(decoder_length, self.max_length, dtype=tf.float32)
-            self.loss = tf.reduce_sum(cross_entropy * weights / tf.to_float(self.batch_size))
+            weights = tf.sequence_mask(
+                decoder_length, self.max_length, dtype=tf.float32)
+            self.loss = tf.reduce_sum(
+                cross_entropy * weights / tf.to_float(self.batch_size))
         return self.loss
 
     def _optimizer(self, loss):
@@ -145,9 +167,8 @@ class Model:
 
     def train(self):
         with tf.name_scope('dataset'):
-            ds = load_data.DataSet(
-                'data/gene_dict_clean_lower.txt',
-                self.max_length, self.batch_size)
+            ds = load_data.DataSet('data/gene_dict_clean_lower.txt',
+                                   self.max_length, self.batch_size)
             train_dataset, test_dataset = ds.load_dict_data()
             iterator = train_dataset.make_initializable_iterator()
 
@@ -156,45 +177,46 @@ class Model:
                 load_data.load_word_embedding_for_dict_file(
                     'data/gene_dict_clean_lower.txt',
                     'data/word_embedding.txt'))
-
+            # Set up tensorflow look up from string word to unique integer
             index_table = tf.contrib.lookup.index_table_from_tensor(
-                word_vocab_list,
-                num_oov_buckets=1,
-                default_value=-1)
+                word_vocab_list, num_oov_buckets=1, default_value=-1)
             self.vocab_size = len(word_vocab_list)
 
         with tf.Session() as sess:
             sess.run(tf.tables_initializer())
-
-            batch_data = index_table.lookup(iterator.get_next())
-            decoder_length = tf.where(tf.equal(batch_data, 2))[:, -1] + 1
-            embedded_batch_data = tf.nn.embedding_lookup(
-                embedding_matrix, batch_data)
-            one_hot_batch_data = tf.one_hot(batch_data, self.vocab_size)
-
-            self.graph(batch_data,
-                       embedded_batch_data,
-                       one_hot_batch_data,
-                       decoder_length)
-
-            sess.run(tf.global_variables_initializer())
-            tf.summary.FileWriter('graphs/test', sess.graph)
-
-            for i in range(NUM_EPOCHS):
-                sess.run(iterator.initializer)
+            while (True):
                 try:
-                    a = sess.run(self.update)
-                    b = sess.run(self.loss)
-                    print(a)
-                    print(b)
+                    batch_data = index_table.lookup(iterator.get_next())
+                    decoder_length = tf.where(tf.equal(batch_data,
+                                                       2))[:, -1] + 1
+                    embedded_batch_data = tf.nn.embedding_lookup(
+                        embedding_matrix, batch_data)
+                    one_hot_batch_data = tf.one_hot(batch_data,
+                                                    self.vocab_size)
+                    self.graph(batch_data, embedded_batch_data,
+                               one_hot_batch_data, decoder_length)
 
+                    sess.run(tf.global_variables_initializer())
+                    tf.summary.FileWriter('graphs/test', sess.graph)
+
+                    for i in range(NUM_EPOCHS):
+                        sess.run(iterator.initializer)
+                        try:
+                            a = sess.run(self.update)
+                            b = sess.run(self.loss)
+
+                            print(a)
+                            print(b)
+
+                        except tf.errors.OutOfRangeError:
+                            pass
                 except tf.errors.OutOfRangeError:
-                    pass
+                    break
 
+    # 寻找可视化结果的方式，加入BLEU的衡量
     def test(self):
         with tf.Session() as sess:
             sess.run(tf.tables_initializer())
-
             batch_data = index_table.lookup(iterator.get_next())
             decoder_length = tf.where(tf.equal(batch_data, 2))[:, -1] + 1
             embedded_batch_data = tf.nn.embedding_lookup(
