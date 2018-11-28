@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 # coding=UTF-8
+=======
+>>>>>>> 88cd809551d2f7302bee3f26c8eeccf66e061530
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 import matplotlib.ticker as ticker

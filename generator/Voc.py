@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 # coding=UTF-8
+=======
+>>>>>>> 88cd809551d2f7302bee3f26c8eeccf66e061530
 import re
 from util.datautil import *
 PAD_token = 0  # Used for padding short sentences
@@ -19,6 +22,7 @@ class Voc:
         }
         self.num_words = 3
 
+<<<<<<< HEAD
     def initVoc(self,path,method):
         voc_file = open(path, "r")
         line = voc_file.readline()
@@ -46,6 +50,16 @@ class Voc:
 
 
 
+=======
+    def initVoc(self,path):
+        voc_file = open(path, "r")
+        line = voc_file.readline()
+        while (line):
+            line = normalizeString(str(line))
+            self.addSentence(line)
+            line = voc_file.readline()
+        voc_file.close()
+>>>>>>> 88cd809551d2f7302bee3f26c8eeccf66e061530
     def addSentence(self, sentence):
         for word in re.split("[ \t]", sentence):
             self.addWord(word)
@@ -79,4 +93,8 @@ class Voc:
         }
         self.num_words = 3
         for word in keep_words:
+<<<<<<< HEAD
             self.addWord(word)
+=======
+            self.addWord(word)
+>>>>>>> 88cd809551d2f7302bee3f26c8eeccf66e061530
