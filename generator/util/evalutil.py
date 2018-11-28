@@ -3,6 +3,7 @@ from __future__ import print_function
 import random
 import os
 from util.datautil import *
+from nltk.translate.bleu_score import sentence_bleu
 current_path = os.path.abspath(__file__)
 current_dir = os.path.dirname(current_path)
 abs_file_path = os.path.dirname(current_dir)
@@ -60,3 +61,9 @@ def evaluateRandomly(voc,word2glove,pairs,encoder, decoder, n = 10):
         output_sentence = ' '.join(output_words)
         print('<', output_sentence)
         print('')
+
+def bleu(targets,outputs):
+    reference = [targets]
+    candidate = outputs
+    score = sentence_bleu(reference, candidate)
+    return score
