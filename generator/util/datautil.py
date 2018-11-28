@@ -1,3 +1,4 @@
+# coding=UTF-8
 import re
 import torch
 import unicodedata
@@ -13,7 +14,9 @@ def normalizeString(s):
     '''
     s = s.lower()
     s = re.sub(r"([.!?])", r" \1", s)
-    s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
+    s = re.sub("\n", " ", s)
+
+    # s = re.sub(r" (\d+) "," <NUM> ", s)
     return s
 
 def filterPair(p):
@@ -21,8 +24,11 @@ def filterPair(p):
         len(p[1]) < MAX_LENGTH and \
         len(p[2]) < MAX_LENGTH
 
-def filterPairs(pairs):
-    return [pair for pair in pairs if filterPair(pair)]
+def filterPairs(pairs,method):
+    if method == "concate":
+        return [pair for pair in pairs if filterPair(pair)]
+    else:
+        return [pair for pair in pairs if filterPair([pair[0],pair[1]," ".join(pair[2])])]
 
 def unicode2Ascii(s):
     return ''.join(
@@ -30,23 +36,53 @@ def unicode2Ascii(s):
         if unicodedata.category(c) != 'Mn')
 
 
-def prepareData(abs_file_path):
+def prepareData(abs_file_path,method):
     '''
     :param abs_file_path: 运行的绝对路径
     :return: 本体的名字，描述以及基因组描述
     '''
-    file = open(abs_file_path + "\data\data_clean.txt", "r")
+    file = open(abs_file_path + "/data/data_clean_lower.txt", "r")
     line = file.readline()
     pairs = []
     while (line):
+
         part = line.split("\t")
+        for word in part:
+            if len(word)<1:
+                part = part.remove(word)
         otology_name = normalizeString(part[0])
         otology_descri = normalizeString(part[1])
         genes = [normalizeString(s) for s in part[2:]]
-        origin_genes = " ".join(genes)
-        pairs.append((otology_name, otology_descri, origin_genes))
+
+
+        if method == "concate":
+            origin_genes = " ".join(genes)
+            pairs.append((otology_name, otology_descri, origin_genes))
+        else:
+            origin_genes = genes
+            pairs.append((otology_name, otology_descri, origin_genes))
         line = file.readline()
-    return filterPairs(pairs)
+    return filterPairs(pairs,method)
+
+def prepareGlove(voc,abs_file_path):
+
+    file2 = open(abs_file_path +"/"+ "data/vocab.txt", "r")
+    line2 = file2.readline()
+    words2 = []
+    while(line2):
+        part = line2.split(" ")
+        word = part[0]
+        words2.append(word)
+        line2 = file2.readline()
+
+    for i in range(3,voc.num_words):
+        word = voc.index2word[i]
+        if word not in words2 :
+            print("not in",ord(voc.index2word[i]))
+
+
+
+
 
 def indexesFromSentence(voc, sentence):
     '''
@@ -54,29 +90,53 @@ def indexesFromSentence(voc, sentence):
     :param sentence: 句子
     :return: 句子中每个字符的编码序号
     '''
-    return [voc.word2index[word] for word in sentence.split(" ")]
+    indexs = []
+    for word in sentence.split(" "):
+        if word in voc.word2index:
+            indexs.append(voc.word2index[word])
+    return indexs
 
 
-def tensorFromSentence(voc, sentence):
+def tensorFromSentence(voc,word2glove, sentence,method,device):
     '''
     :param voc:词汇库
     :param sentence: 句子
     :return: 根据句子生成的tensor
     '''
-    indexes = indexesFromSentence(voc, sentence)
-    indexes.append(EOS_token)
-    result = torch.tensor(indexes, dtype = torch.long).view(-1, 1)
+    if method == "onehot":
+        indexes = indexesFromSentence(voc, sentence)
+        indexes.append(EOS_token)
+        result = torch.tensor(indexes, dtype = torch.long).view(-1, 1)
+    if method == "glove":
 
+        tensors = gloveFromSentence(word2glove,sentence)
+        tensor_size = tensors[0].size(0)
+        tensors.append(torch.zeros(tensor_size, dtype = torch.float,device = device))
+        result = tensors
     return result
 
-def tensorsFromPair(voc,input,target):
+def tensorsFromPair(voc, word2glove,input,target,method,device):
     '''
     :param voc: 词汇库
     :param input: 源文本
     :param target: 目标文本
     :return: 两者的tensor元组
     '''
-    input_tensor = tensorFromSentence(voc, input)
-    target_tensor = tensorFromSentence(voc, target)
+    input_tensor = tensorFromSentence(voc,word2glove, input, method = method, device = device)
+    target_tensor = tensorFromSentence(voc,word2glove, target, method = "onehot",device = device)
+    # print(input_tensor)
     return (input_tensor, target_tensor)
 
+def gloveFromSentence(word2glove,sentence):
+    split = sentence.split(" ")
+    gloves = []
+    for word in split:
+        if word in word2glove:
+            gloves.append(torch.tensor(word2glove[word],dtype = torch.float,device = device))
+    return gloves
+
+# def word2glove(word):
+#     try :
+#         return
+#     except KeyError:
+#         return

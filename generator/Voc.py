@@ -1,3 +1,4 @@
+# coding=UTF-8
 import re
 from util.datautil import *
 PAD_token = 0  # Used for padding short sentences
@@ -18,14 +19,33 @@ class Voc:
         }
         self.num_words = 3
 
-    def initVoc(self,path):
+    def initVoc(self,path,method):
         voc_file = open(path, "r")
         line = voc_file.readline()
-        while (line):
-            line = normalizeString(str(line))
-            self.addSentence(line)
-            line = voc_file.readline()
-        voc_file.close()
+        if method == "onehot":
+            while (line):
+
+                line = normalizeString(str(line))
+                self.addSentence(line)
+                line = voc_file.readline()
+            voc_file.close()
+            return
+        else:
+            word2glove = {}
+            while(line):
+                part = line[:-1].split(" ")
+                word = part[0]
+                self.addWord(word)
+                glove = part[1:]
+                glove = [float(x) for x in glove]
+                word2glove[word] = glove
+                line = voc_file.readline()
+            self.num_words += len(word2glove)
+            voc_file.close()
+            return word2glove
+
+
+
     def addSentence(self, sentence):
         for word in re.split("[ \t]", sentence):
             self.addWord(word)
