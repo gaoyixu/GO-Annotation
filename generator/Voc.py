@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# coding=UTF-8
-=======
->>>>>>> 88cd809551d2f7302bee3f26c8eeccf66e061530
 import re
 from util.datautil import *
 PAD_token = 0  # Used for padding short sentences
@@ -22,36 +18,7 @@ class Voc:
         }
         self.num_words = 3
 
-<<<<<<< HEAD
-    def initVoc(self,path,method):
-        voc_file = open(path, "r")
-        line = voc_file.readline()
-        if method == "onehot":
-            while (line):
-
-                line = normalizeString(str(line))
-                self.addSentence(line)
-                line = voc_file.readline()
-            voc_file.close()
-            return
-        else:
-            word2glove = {}
-            while(line):
-                part = line[:-1].split(" ")
-                word = part[0]
-                self.addWord(word)
-                glove = part[1:]
-                glove = [float(x) for x in glove]
-                word2glove[word] = glove
-                line = voc_file.readline()
-            self.num_words += len(word2glove)
-            voc_file.close()
-            return word2glove
-
-
-
-=======
-    def initVoc(self,path):
+    def initVoc(self, path):
         voc_file = open(path, "r")
         line = voc_file.readline()
         while (line):
@@ -59,7 +26,7 @@ class Voc:
             self.addSentence(line)
             line = voc_file.readline()
         voc_file.close()
->>>>>>> 88cd809551d2f7302bee3f26c8eeccf66e061530
+
     def addSentence(self, sentence):
         for word in re.split("[ \t]", sentence):
             self.addWord(word)
@@ -93,8 +60,4 @@ class Voc:
         }
         self.num_words = 3
         for word in keep_words:
-<<<<<<< HEAD
             self.addWord(word)
-=======
-            self.addWord(word)
->>>>>>> 88cd809551d2f7302bee3f26c8eeccf66e061530
