@@ -1,3 +1,4 @@
+# An implementation of take the mean of every sentence's hidden representation
 from __future__ import print_function
 import torch.nn as nn
 import random
@@ -73,6 +74,7 @@ def train(input_tensors,
 
     encoder_optimizer.step()
     decoder_optimizer.step()
+
 
     return loss.item() / target_length
 

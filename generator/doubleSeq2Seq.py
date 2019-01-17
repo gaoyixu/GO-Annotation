@@ -1,3 +1,4 @@
+# An implementation of Using double GRU
 from __future__ import print_function
 import torch.nn as nn
 import random
@@ -10,10 +11,11 @@ from util.evalutil import *
 from decoder import DecoderRNN
 from encoder import CombineEncoderRNN
 from encoder import EncoderRNN
+import datetime
 current_path = os.path.abspath(__file__)
 current_dir = os.path.dirname(current_path)
 abs_file_path = os.path.dirname(current_dir)
-MAX_LENGTH = 2000
+MAX_LENGTH = 397
 SOS_token = 0
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 teacher_forcing_ratio = 0.5
@@ -93,7 +95,7 @@ def trainIters(encoder,
                CombineEncoder,
                pairs,
                n_epoch,
-               print_every=100,
+               print_every=50,
                plot_every=100,
                learning_rate=0.005):
     '''
@@ -110,9 +112,12 @@ def trainIters(encoder,
     print_loss_total = 0
     plot_loss_total = 0
 
-    encoder_optimizer = torch.optim.SGD(encoder.parameters(), lr=learning_rate,momentum=0.8)
-    decoder_optimizer = torch.optim.SGD(decoder.parameters(), lr=learning_rate,momentum=0.8)
-    CombineEncoder_optimizer = torch.optim.SGD(decoder.parameters(), lr=learning_rate,momentum=0.8)
+    # encoder_optimizer1 = torch.optim.SGD(encoder.parameters(), lr=learning_rate, momentum=0.5)
+    # decoder_optimizer1 = torch.optim.SGD(decoder.parameters(), lr=learning_rate, momentum=0.5)
+    # CombineEncoder_optimizer1 = torch.optim.SGD(CombineEncoder.parameters(), lr=learning_rate, momentum=0.5)
+    encoder_optimizer2 = torch.optim.SGD(encoder.parameters(), lr=learning_rate, momentum=0.8, weight_decay=1e-5)
+    decoder_optimizer2 = torch.optim.SGD(decoder.parameters(), lr=learning_rate, momentum=0.8, weight_decay=1e-5)
+    CombineEncoder_optimizer2 = torch.optim.SGD(CombineEncoder.parameters(), lr=learning_rate, momentum=0.8, weight_decay=1e-5)
     # randomPairs = [random.choice(pairs) for i in range(n_iter)]
     training_pairs = [
         tensorsFromPair(voc, pairs[i][2], pairs[i][0], "context")
@@ -128,8 +133,12 @@ def trainIters(encoder,
             training_pair = training_pairs[iter - 1]
             input_tensors = training_pair[0]
             target_tensor = training_pair[1].type(torch.cuda.LongTensor)
-            loss = train(input_tensors, target_tensor, encoder, decoder,CombineEncoder,
-                         encoder_optimizer, decoder_optimizer,CombineEncoder_optimizer, criterion)
+            # if i > n_epoch*0.5:
+            #     loss = train(input_tensors, target_tensor, encoder, decoder,CombineEncoder,
+            #              encoder_optimizer1, decoder_optimizer1,CombineEncoder_optimizer2, criterion)
+            # else:
+            loss = train(input_tensors, target_tensor, encoder, decoder, CombineEncoder,
+                            encoder_optimizer2, decoder_optimizer2, CombineEncoder_optimizer2, criterion)
             print_loss_total += loss
             plot_loss_total += loss
 
@@ -211,27 +220,28 @@ def evaluateRandomly(encoder, decoder,CombineEncoder,pairs, n=10):
         print('<', output_sentence)
         print("bleu", score)
 
-        print('')
 
-
+nowTime = datetime.datetime.now().strftime('%Y-%m-%d-%H')
 voc_path = abs_file_path + "/data/data_clean_lower.txt"
 voc = Voc("total")
 voc.initVoc(voc_path)
 trainpairs, testpairs = prepareData(abs_file_path,"context")
+# trainpairs = trainpairs[:1000]
+# testpairs = testpairs[:1000]
 descibe = [pair[2] for pair in trainpairs]
 print("ontology name：",trainpairs[0][0],"\nontology token：",trainpairs[0][1],"\ngene desciption：",descibe[0],"\n",)
 encodernum = max(map(lambda x:len(x),descibe))
 print(encodernum)
 
-hidden_size = 512
+hidden_size = 256
 encoder1 = EncoderRNN(voc.num_words, hidden_size).to(device)
 attn_decoder1 = DecoderRNN(hidden_size, voc.num_words).to(device)
 CombineEncoder = CombineEncoderRNN(hidden_size, hidden_size).to(device)
 trainIters(encoder1, attn_decoder1, CombineEncoder,trainpairs, 20)
 
-encoder_save_path = "model/combineEncoder3.pth"
-decoder_save_path = "model/combineDecoder3.pth"
-combiner_save_path = "model/combineCombiner3.pth"
+encoder_save_path = "model/combineEncoder+" +nowTime+ "+.pth"
+decoder_save_path = "model/combineDecoder+" +nowTime+ "+.pth"
+combiner_save_path = "model/combineCombiner+" +nowTime+ "+.pth"
 torch.save(encoder1, current_dir + '/' + encoder_save_path)
 torch.save(attn_decoder1, current_dir + "/" + decoder_save_path)
 
@@ -239,5 +249,6 @@ torch.save(CombineEncoder, current_dir + "/" + combiner_save_path)
 model1 = torch.load(current_dir + "/" + encoder_save_path)
 model2 = torch.load(current_dir + "/" + decoder_save_path)
 model3 = torch.load(current_dir + "/" + combiner_save_path)
-evaluateRandomly(
-    model1.to(device), model2.to(device),model3.to(device),testpairs)
+# evaluateRandomly(
+#     model1.to(device), model2.to(device),model3.to(device),testpairs)
+combineEvaluateTotally(model1.to(device), model2.to(device),model3.to(device),voc,testpairs,len(testpairs))
